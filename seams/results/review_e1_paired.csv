@@ -1,0 +1,16 @@
+scenario,bias,condition,d_unserved,better,worse,p
+nominal,,ids_response,0.0,0,0,1.0
+nominal,,ids_always,0.0,0,0,1.0
+nominal,,contracts,19.49538376066894,0,10,0.001953125
+fdi,-0.005,ids_response,0.0,0,0,1.0
+fdi,-0.005,ids_always,0.0,0,0,1.0
+fdi,-0.005,contracts,21.530911970253328,0,10,0.001953125
+fdi,-0.01,ids_response,0.0,0,0,1.0
+fdi,-0.01,ids_always,0.0,0,0,1.0
+fdi,-0.01,contracts,23.95288553743253,0,10,0.001953125
+fdi,-0.02,ids_response,-0.03362592343986748,1,0,1.0
+fdi,-0.02,ids_always,-0.0825460370696085,1,0,1.0
+fdi,-0.02,contracts,26.692123170840027,0,10,0.001953125
+fdi,-0.04,ids_response,-1.6779379119085018,4,0,0.125
+fdi,-0.04,ids_always,-1.6779379119085018,4,0,0.125
+fdi,-0.04,contracts,25.030171296001136,0,10,0.001953125

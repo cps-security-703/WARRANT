@@ -1,0 +1,6 @@
+# RQ4 unforeseen fault (HELD OUT: never tune contract templates or agent prompts on it).
+# Event day, no attacker: 1.5x the charging sessions at every hub. Applied as a scenario-level
+# config override (campaign `set`), so the attack list is empty.
+attacks: []
+set:
+  fleet.generator.sessions_per_port_day: {H1: 4.5, H2: 4.5, H3: 4.5}

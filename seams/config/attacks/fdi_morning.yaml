@@ -1,0 +1,11 @@
+# Feeder FDI at the morning arrival peak (08:30-10:30), when every hub is full and H1 draws 60-75 kW.
+# Same mechanism as fdi.yaml (falsely low reported voltage at H1 -> needless derating), timed where
+# curtailment costs the most energy. H1's true voltage is ~1.00-1.02 pu then, so the bias needed to
+# reach the derating knee (0.97) and floor (0.95) is larger than in the 16:30 attack. Ground truth: grid.
+attacks:
+  - type: fdi
+    target: H1
+    onset_s: 30600
+    duration_s: 7200
+    bias_pu: -0.06            # strength: final falsification
+    ramp_pu_per_min: 0.004    # strength: how fast the bias is reached

@@ -1,0 +1,28 @@
+# Phase 4 — verifier, shields, epsilon. Static contracts (theta_static), now enforced by
+# shields and certified by Z3 at every contract boundary. No renegotiation yet (Phase 5).
+base: phase3.yaml
+
+shields:
+  pcc_limiter: true           # clamps each hub to P_bar_h at every fine step
+  hub_admission: true         # enforces lam_bar_h,w at the approach geofence
+  home_cap: true              # utility-signed demand-response cap (OpenADR) on the home portfolio:
+                              # the chargers obey it, so it binds a dishonest aggregator too
+
+verifier:
+  horizon_s: 3600             # H = 1 h for V2
+  use_epsilon: true           # false = RQ3's "without eps" variant
+
+contracts:
+  epsilon:                    # produced by seams.experiments.calibrate, stored in theta
+    drift_quantile: 1.0       # D_h(k) = max nominal deviation ...
+    drift_margin: 0.2         # ... times (1 + margin)
+    # background levels are fractions of the envelope top: the heaviest day a seed can draw x
+    # peak_mult x (1 + 4 noise sigma) (calibrate.bg_levels), so they follow the electrification level
+    lin_bg_levels: [0.35, 0.5, 0.7, 0.85, 1.0]
+    lin_anchors: 4
+    lin_samples: 25
+    lin_margin: 0.2
+    load_bg_worst: 1.0        # heaviest background for P_load_max
+    # overvoltage side: lightest (real nights reach ~0.17 of the top) to heaviest
+    ceiling_bg_levels: [0.15, 0.2, 0.3, 0.45, 0.6, 0.85, 1.0]
+    ceiling_margin: 0.005     # pu added to the sampled maximum

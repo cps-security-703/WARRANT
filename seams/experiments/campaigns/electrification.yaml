@@ -1,0 +1,20 @@
+# Electrification axis (IEEE 34): today / 2035 / 2045 load growth and home-charger share, where
+# charging -> grid coupling appears. Protection only vs contracts + renegotiation, strongest
+# scripted attacks + a nominal day per cell (EDF). The 2035 cells repeat rq1's design point on
+# the same seeds, as a consistency check.
+name: electrification
+out_dir: ~/seams_runs
+results_dir: seams/results
+seeds: [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009]
+keep_fine: [2000]
+conditions:
+  protection_only: {config: seams/config/phase2.yaml}
+  contracts: {config: seams/config/phase5.yaml}
+axes:
+  - {name: elec, key: scenario.electrification, values: [today, "2035", "2045"]}
+schedulers: [EDF]
+scenarios:
+  nominal: {attack: null}
+  navigation: {attack: seams/config/attacks/navigation.yaml, param: attacks.0.fraction, values: [1.0]}
+  fdi: {attack: seams/config/attacks/fdi.yaml, param: attacks.0.bias_pu, values: [-0.04]}
+  aggregator: {attack: seams/config/attacks/aggregator.yaml, param: attacks.*.fraction, values: [1.0]}

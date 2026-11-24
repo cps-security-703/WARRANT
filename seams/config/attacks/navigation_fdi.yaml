@@ -1,0 +1,17 @@
+# Multi-fault (option B): navigation surge at H1 plus a concurrent sub-threshold FDI at the same
+# hub (-0.008 pu; FDI alone first crosses at -0.01), at the 07:30 arrival peak. Tests multi-fault
+# containment.
+# HELD OUT for RQ4's unforeseen-fault set: never tune contract templates or agent prompts on it.
+attacks:
+  - type: navigation
+    target: H1
+    onset_s: 27000
+    duration_s: 7200
+    fraction: 1.0
+    spoof_queue: 30
+  - type: fdi
+    target: H1
+    onset_s: 27000
+    duration_s: 7200
+    bias_pu: -0.008
+    ramp_pu_per_min: 0.004

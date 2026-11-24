@@ -1,0 +1,59 @@
+# Phase 2 — protection-only baseline (primary comparison) + scripted attacks, no contracts.
+# Attacks are added with --attack seams/config/attacks/<name>.yaml (or `attacks:` here).
+base: phase1.yaml
+
+baseline: protection_only     # protection_only | no_protection (see baselines/protection.py)
+
+grid:
+  derating:
+    enabled: true
+  protection:
+    # Transformer thermal protection -> hub offline (breaker open) for offline_s.
+    # c57_91: IEEE C57.91 top-oil/hot-spot model with the day's real ambient; trips at the
+    # guide's 140 C long-time-emergency hot-spot limit (parameters: domains/grid/protection.py).
+    # threshold (Phases 0-6): loading above trip_loading_pct for trip_after_s.
+    enabled: true
+    model: c57_91
+    trip_hotspot_c: 140.0
+    ambient_c: 30.0           # used only when the background load has no real temperature
+    thermal: {top_oil_rise_c: 55.0, hotspot_gradient_c: 25.0, loss_ratio: 4.0, n: 0.8, m: 0.8,
+              tau_top_oil_s: 7200.0, tau_winding_s: 300.0}
+    trip_loading_pct: 120.0
+    trip_after_s: 300
+    offline_s: 1800
+
+ids:
+  # transformer = the session-level Transformer IDS (adaptive_rl/), retrained on this testbed by
+  # seams.experiments.train_ids. placeholder = a simple charging-side rule.
+  # transformer+bdd: the Transformer IDS on charging sessions and chi-square bad-data detection
+  # on grid telemetry (baselines/bdd.py), side by side; detection only
+  kind: transformer+bdd
+  # written by seams.experiments.calibrate at the reference Delta only: a fine-step detector, so
+  # every condition (whatever its Delta) uses the same model
+  bdd_file: seams/models/bdd_{feeder}_{elec}.json
+  bdd_reference_delta_s: 120
+  bdd_alpha: 1.0e-4           # chi^2 test level ...
+  bdd_persist: 2              # ... held for this many consecutive steps
+  bdd_margin: 1.2             # threshold >= margin x the largest held J on nominal calibration days
+  adaptive_rl_dir: adaptive_rl
+  model_path: seams/models/ids_transformer_testbed.pkl
+  retrained_path: seams/models/ids_transformer_testbed.pkl
+  threshold: null             # null = the bundle's threshold
+  rate_tol: 0.02              # placeholder only
+  training:                   # adaptive_rl recipe, calibration seeds only (last one held out)
+    seeds: [1000, 1001, 1002, 1003, 1004]
+    n_samples: 8000
+    attack_ratio: 0.5
+    test_frac: 0.2
+    epochs: 80
+    random_state: 42
+
+# Domain-failure thresholds for cascade depth, fixed BEFORE any attack run.
+# Set from the Phase 1 nominal day (seed 42): max spillback 269 m, min d_h 97.5 kW of 105.
+metrics:
+  spillback_fail_m: 400.0     # transport: queue reaches > 400 m back from the hub
+  curtail_frac: 0.10          # charging: d_h below 90 % of full allowance ...
+  curtail_min_s: 300          # ... for at least 5 min, or the hub is offline
+  # grid: any Phi_safe violation on the true state (grid.phi_safe)
+
+attacks: []

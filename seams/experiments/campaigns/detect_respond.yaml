@@ -1,0 +1,23 @@
+# Review experiments E1 + E2 (IEEE 34, 2035, EDF).
+# E1, detect-and-respond: protection only plus a local response to the grid's chi-square BDD
+#   (ids_response: derating reads the MV-meter estimate while the BDD alarms; WARRANT's exit rule),
+#   and "always", where derating never reads the reported voltage. Both are optimistic: they assume
+#   the grid's detector is trusted, which the threat model does not grant. Compared with the rq1
+#   protection-only and WARRANT runs of the same days.
+# E2, FDI ramp-rate sweep at bias -0.04 (0 = step); ramp 0.004 is the rq1 default.
+name: detect_respond
+out_dir: ~/seams_runs
+results_dir: seams/results
+seeds: [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009]
+keep_fine: [2000]
+conditions:
+  protection_only: {config: seams/config/phase2.yaml, scenarios: [fdi_ramp]}
+  ids_response: {config: seams/config/phase2.yaml, set: {ids_response.enabled: true}}
+  ids_always: {config: seams/config/phase2.yaml, set: {ids_response.enabled: true, ids_response.mode: always},
+               scenarios: [nominal, fdi]}
+  contracts: {config: seams/config/phase5.yaml, scenarios: [fdi_ramp]}
+schedulers: [EDF]
+scenarios:
+  nominal: {attack: null}
+  fdi: {attack: seams/config/attacks/fdi.yaml, param: attacks.0.bias_pu, values: [-0.005, -0.01, -0.02, -0.04]}
+  fdi_ramp: {attack: seams/config/attacks/fdi.yaml, param: attacks.0.ramp_pu_per_min, values: [0.0, 0.001, 0.002, 0.01]}

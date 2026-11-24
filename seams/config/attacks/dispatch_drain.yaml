@@ -1,0 +1,15 @@
+# Compromised AV-fleet dispatcher, drain-then-converge (attacks/scripted/dispatch.py; needs the
+# AV fleet of scenario.hub_kind: dcfc / dcfc_depot). From 15:30 the compromised share of the fleet
+# gets back-to-back long rides and no dispatcher-sent charging; at 17:30 it is sent to charge at
+# H2 (public hub + robotaxi depot) with spoofed hub views. Frozen 2026-11-21 from the development
+# probe (seeds 3000-3009, protection only, fraction 1.0): converge only / 2 h / 4 h drain crossed
+# on 2 / 5 / 3 of 10 days; the attacker's best, 2 h, is fixed here before any evaluation seed.
+# Ground truth: transport, for the whole compromise (15:30-19:30).
+attacks:
+  - type: dispatch
+    target: H2
+    onset_s: 55800
+    converge_s: 63000
+    duration_s: 14400
+    fraction: 1.0             # strength: share of the AV fleet compromised
+    spoof_queue: 30

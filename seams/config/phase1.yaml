@@ -1,0 +1,244 @@
+# Phase 1 — closed loop, no contracts: full fleet, 3 hubs, OpenDSS in the loop,
+# derating through ACN-Sim constraint limits, a_h fed back to routing, capacity-limited parking.
+# Values are starting points, not results.
+
+# Scenario presets (cosim/config.apply_scenario). A preset wins over the grid keys it sets.
+# feeder: IEEE 34 (main) or IEEE 123 (generality check). households = residential share of LA
+# County building load at the annual peak (52.3 %, NREL) x the feeder's nominal load / 2.5 kW
+# diversified household peak. Hub <-> bus mapping is a stated modeling assumption, not geography.
+# electrification (a scenario axis): load growth and the share of households with a home charger
+# managed by the hubs' aggregator. today = 2018 load, ~10 %; 2035 = CEC 2025 IEPR mid-range peak
+# growth interpolated (+25 %), 35 %; 2045 = +50 %, 70 %, typical summer days only (the hottest
+# 10 % break Phi_safe with no attack at all: the 2045 feeder would need upgrades).
+scenario:
+  feeder: ieee34
+  electrification: "2035"
+  feeders:
+    ieee34:
+      # 830 is mid-feeder (most voltage-sensitive); 840 and 848 share the lateral beyond 834,
+      # so their cross-sensitivity S_hj is non-zero. 890 is excluded: ~0.92 pu with no hub.
+      file: seams/scenarios/grid/ieee34/ieee34Mod1.dss
+      voltage_bases: "69,24.9,4.16,0.48,0.208"
+      mv_kv: 24.9
+      households: 370           # 0.523 x 1769 kW / 2.5 kW
+      hub_buses: {H1: "830", H2: "840", H3: "848"}
+    ieee123:
+      # 51: end of the main trunk; 65: the lowest-voltage lateral (beyond 60); 108: downstream
+      # of regulator 4. All three-phase 4.16 kV buses.
+      file: seams/scenarios/grid/ieee123/IEEE123Master.dss
+      voltage_bases: "4.16,0.48,0.208"
+      mv_kv: 4.16
+      households: 730           # 0.523 x 3490 kW / 2.5 kW
+      hub_buses: {H1: "51", H2: "65", H3: "108"}
+  electrification_levels:
+    today: {peak_mult: 1.0, home_share: 0.10}
+    "2035": {peak_mult: 1.25, home_share: 0.35}
+    "2045": {peak_mult: 1.5, home_share: 0.70, peak_quantile_max: 0.9}
+  # hub_kind: the hubs' charging technology. l2 = the hubs below (no change). dcfc = DC fast-
+  # charging hubs at the NEVI minimum (23 CFR 680.106: four 150 kW CCS ports per site, all at
+  # once, 600 kW), behind the next standard pad-mount size (750 kVA), 480 V service; sessions
+  # from EV WATTS Pacific DC fast chargers; demand at the L2 hubs' busy factor (~2.1x the real
+  # 2.16 sessions/port/weekday). Vehicle DC acceptance 150 kW (assumption for a 2035 fleet).
+  # IEEE 34 cannot host three such hubs (H1 ~0.87 pu at 70 % background); IEEE 123 can, with
+  # H2 at ~0.950 pu at the envelope top with every hub at 600 kW (an interconnection study's
+  # honest worst case), so dcfc is run on ieee123. File names get feeder token '<feeder>-dcfc'.
+  hub_kind: l2
+  hub_kinds:
+    dcfc:
+      hubs: {n_evse: 4, xfmr_kva: 750.0, p_allow_kw: 600.0, profile: dcfc}
+      evse: {voltage_v: 480.0, max_rate_a: 312.5, hub_aggregate_limit_a: 1250.0}
+      ev: {max_kw: 150.0}
+      grid: {lv_kv: 0.48}
+      fleet: {generator: {sessions_per_port_day: {H1: 4.5, H2: 4.5, H3: 4.5}}}
+      transport: {mean_dwell_s: 4792}   # mean real DCFC dwell (routing's wait estimate)
+      # AV ride-hail fleet (domains/transport/av.py): Waymo's density in Los Angeles, June 2025
+      # (400+ vehicles over ~120 sq mi, ~3.3/sq mi) over our ~5.8 sq mi network = 20 AVs
+      # (San Francisco 2024, 300 over 55 sq mi = 32, is the sensitivity). Assumptions: depot-
+      # charged overnight (SOC 0.9), in service 06:00-24:00, 5-15 min idle between rides, rides
+      # of real trip length, charged when SOC < 0.3, leave the charger when served.
+      # Vehicle: Jaguar I-Pace (Waymo's current fleet vehicle): 90 kWh battery, 2,208 kg, drag
+      # coefficient 0.29, 100 kW peak DC charging. SUMO's energy model with these values gives
+      # 0.124 kWh/km on our network; a 1 kW constant auxiliary load (Waymo I-Pace driving
+      # computer and sensors, ~1 kW per S. Abuelsamid in InsideEVs) brings it to 0.143 kWh/km
+      # (2 kW gave 0.164; backup seams/_backup_2026-11-22_aux2kW), still below the EPA combined rating (~0.27 kWh/km at
+      # the wall), so the fleet's demand is a conservative estimate.
+      av_fleet:
+        n: 20
+        init_soc: 0.9
+        charge_soc: 0.3
+        start_s: [21600, 23400]
+        end_s: 86400
+        idle_s: [300, 900]
+        vehicle:
+          capacity_wh: 90000
+          mass_kg: 2208
+          energy: {airDragCoefficient: 0.29, frontSurfaceArea: 2.6, constantPowerIntake: 1000.0}
+      trip_types: {av: {dwell_s: 3600, release_on_complete: true, max_kw: 100.0}}
+    # Public fast-charging hub plus a robotaxi depot at H2 (same bus, own 1,500 kVA service). Depot
+    # ports: one per three AVs (INL/ANL robotaxi charging study, sparse network) = 7 for 20 AVs, at
+    # 150 kW (the AVs draw at most 100 kW). Public demand is unchanged (H2 keeps 4 x 4.5 sessions
+    # a day). Hosting check (IEEE 123, 2035, others at 0-300 kW): H2 at 0.95-0.97 pu up to 1 MW,
+    # 0.93-0.94 pu at the full 1.3 MW.
+    dcfc_depot:
+      extends: dcfc
+      hub_overrides:
+        H2: {n_evse: 11, xfmr_kva: 1500.0, p_allow_kw: 1300.0, evse: {hub_aggregate_limit_a: 2708.3}}
+      fleet: {generator: {sessions_per_port_day: {H2: 1.636}}}
+
+run:
+  seed: 42
+  horizon_s: 86400            # full day from midnight
+  out_dir: seams/runs
+
+clock:
+  sumo_step_s: 1.0
+  fine_period_s: 60.0         # delta
+  contract_period_s: 300.0    # Delta
+
+sumo:
+  sumo_home: ~/sumo
+  scenario_dir: seams/scenarios/pasadena
+  gui: false
+
+# Real road network: OpenStreetMap extract of Pasadena, CA around Caltech and Old Pasadena
+# (bbox 34.128,-118.165 - 34.156,-118.112, via Overpass, 2026-11-04; ODbL). SUMO 1.28 netconvert.
+# The synthetic 5x5 grid of Phases 0-6 is still available as kind: grid.
+network:
+  kind: osm
+  osm_file: seams/scenarios/pasadena/pasadena.osm.xml.gz
+  netconvert_options: [--keep-edges.by-vclass, passenger,
+    --keep-edges.in-geo-boundary, "-118.165,34.128,-118.112,34.156",
+    --remove-edges.by-type, "highway.service,highway.track,highway.footway,highway.path,highway.cycleway,highway.pedestrian,highway.steps,highway.living_street",
+    --geometry.remove, --roundabouts.guess, --ramps.guess, --junctions.join,
+    --tls.guess-signals, --tls.discard-simple, --tls.join, --tls.default-type, actuated,
+    --remove-edges.isolated, --keep-edges.components, "1", --output.street-names, --edges.join]
+
+# Hubs at real sites (OSM), each with the session profile of its venue type (see
+# seams/data/prepare.py): H1 Caltech Parking Structure 2 (ACN-Data's own garage; workplace),
+# H2 Holly Street Garage, Old Pasadena (public multi-use garage), H3 The Shops on Lake Avenue
+# (retail). edge = the street the entrance is on; pa_start/end_m = the entrance on that edge.
+# Hub <-> feeder bus mapping is a stated modeling assumption, not geography: 830 is mid-feeder
+# (most voltage-sensitive); 840 and 848 share the lateral beyond 834, so their cross-sensitivity
+# S_hj is non-zero. 890 is excluded: it sits at ~0.92 pu with no hub.
+# Oversubscribed like real sites: 20 ports x 6.66 kW = 133 kW behind a 112.5 kVA transformer.
+hubs:
+  - {id: H1, edge: "192368811#0", pa_start_m: 230.0, pa_end_m: 270.0, lat: 34.13859, lon: -118.12838,
+     profile: workplace, n_evse: 20, bus: "830", xfmr_kva: 112.5, p_allow_kw: 105.0}
+  - {id: H2, edge: "-17212319#4", pa_start_m: 30.0, pa_end_m: 70.0, lat: 34.1472, lon: -118.14728,
+     profile: public, n_evse: 20, bus: "840", xfmr_kva: 112.5, p_allow_kw: 105.0}
+  - {id: H3, edge: "13315387#0", pa_start_m: 190.0, pa_end_m: 230.0, lat: 34.13786, lon: -118.13334,
+     profile: retail, n_evse: 20, bus: "848", xfmr_kva: 112.5, p_allow_kw: 105.0}
+
+
+evse:
+  max_rate_a: 32.0
+  voltage_v: 208.0
+  # Aggregate limit is power-equivalent current (sum of EVSE amps x 208 V); per-phase
+  # constraints are not modeled. 105 kW / 208 V = 504.8 A.
+  hub_aggregate_limit_a: 504.8
+  scheduler: EDF              # EDF | LLF | RR | UNCONTROLLED
+
+grid:
+  feeder: seams/scenarios/grid/ieee34/ieee34Mod1.dss
+  voltage_bases: "69,24.9,4.16,0.48,0.208"
+  mv_kv: 24.9
+  lv_kv: 0.208
+  xfmr_xhl: 3.5               # % reactance of the hub service transformer
+  xfmr_r: 0.9                 # % resistance
+  hub_pf: 0.99
+  tap_step: 0.00625           # regulator step (5/8 %)
+  lock_taps: false            # locked taps reach ~1.17 pu at light load; see dss_env.py
+  background:
+    # Real day of LA County building load (NREL ResStock + ComStock, 15 min; annual peak =
+    # the feeder's nominal load), drawn per seed from summer weekdays (Jun-Sep: AC-driven
+    # late-afternoon peak, the stress season). The hourly shape of Phases 0-6 is source: hourly.
+    source: nrel_la
+    months: [6, 7, 8, 9]
+    weekdays_only: true
+    # Load growth: set by scenario.electrification (CEC 2025 IEPR mid-range: California peak
+    # demand ~+50 % by 2045). On today's grid the feeder's regulators hold every hub above
+    # 0.98 pu even on the 2018 annual peak day.
+    peak_mult: 1.25
+    hourly_mult: [0.45, 0.42, 0.40, 0.40, 0.42, 0.50, 0.62, 0.74, 0.80, 0.82, 0.84, 0.86,
+                  0.87, 0.86, 0.85, 0.86, 0.90, 0.96, 1.00, 0.98, 0.92, 0.80, 0.65, 0.52]
+    noise_sigma: 0.02         # AR(1) stationary std, fraction of the shape (sub-15-min variability)
+    noise_ar1: 0.9
+  home_ev:
+    # Home L2 chargers on the feeder, managed by the hubs' aggregator (domains/charging/home.py;
+    # sessions: EV WATTS Pacific residential, 0.45-0.59 sessions/charger/weekday).
+    # chargers = households x EV share: residential load is 52.3 % of LA County building load
+    # at the annual peak (NREL), so 0.523 x 1769 kW / 2.5 kW diversified household peak ~ 370
+    # households; the share with a home charger is set by scenario.electrification (assumption;
+    # CA ACC II: 100 % ZEV new-car sales from 2035).
+    enabled: true
+    chargers: 130
+    sessions_per_charger_day: 0.5
+    max_kw: 7.2               # 30 A x 240 V, a typical home L2 charger
+    pf: 0.99
+  telemetry:
+    # revenue-class voltage measurement (ANSI C12.20 class 0.5: +-0.5 % ~ 3 sigma)
+    noise_sigma_pu: 0.0017
+    latency_steps: 0          # SCADA scan + backhaul (seconds) is below the 60 s step
+    quantum_pu: 0.0001
+  derating:
+    v_knee: 0.97              # full allowance at or above (reported V at the PCC bus)
+    v_lo: 0.95                # p_min at or below
+    p_min_frac: 0.25
+  phi_safe:
+    v_min: 0.95               # ANSI C84.1 Range A
+    v_max: 1.05
+    loading_max: 100.0        # % of service transformer nameplate
+
+ev:
+  capacity_wh: 64000
+  target_soc: 0.95            # EV WATTS median SOC at the end of a session
+  obc_kw: 7.7
+  low_soc_threshold: 0.20
+  max_charge_visits: 1
+
+# dwell budget = how long a vehicle may stay plugged; request = the top-up it asks for
+# (capped at target_soc). At 6.66 kW per port each request fits its dwell with little slack.
+trip_types:
+  fleet: {dwell_s: 3600, request_kwh: 6.0}
+  commuter: {dwell_s: 7200, request_kwh: 12.0}
+  ridehail: {dwell_s: 1800, request_kwh: 3.0}
+
+fleet:
+  generator:
+    # Sessions from real data (seams/data/prepare.py): per hub, Poisson(rate x n_evse) weekday
+    # sessions of its profile; SOC at plug-in and approach length from EV WATTS; through traffic
+    # departs on EV WATTS trip starts. The DEMAND LEVEL is the one assumption: real public L2
+    # runs at 0.2-0.5 sessions/port/day (1.3-1.6 on days a port is used at all); a busy future
+    # AV/fleet hub is the stress scenario studied here.
+    kind: empirical
+    sessions_per_port_day: {H1: 3.0, H2: 3.0, H3: 3.0}
+    through_vehicles: 300
+    through_soc_range: [0.50, 0.90]
+    approach_km_max: 4.0
+    detour_factor: 1.3
+    approach_speed_mps: 9.0
+    destination_radius_m: 400.0
+    parking_margin_s: 60.0
+    # used by kind: grid (synthetic) only
+    n_vehicles: 1300
+    charging_fraction: 0.85
+    arrival_hourly: [0.3, 0.2, 0.2, 0.2, 0.3, 0.6, 1.0, 1.4, 1.5, 1.3, 1.2, 1.2,
+                     1.2, 1.2, 1.2, 1.3, 1.5, 1.6, 1.4, 1.1, 0.9, 0.7, 0.5, 0.4]
+    trip_mix: {fleet: 0.4, commuter: 0.3, ridehail: 0.3}
+    low_soc_range: [0.10, 0.19]
+    high_soc_range: [0.50, 0.90]
+
+bridge:
+  release_tol_kwh: 0.01
+  release_on_complete: false  # drivers stay their real dwell (idle occupancy is real demand)
+  dwell_scale: 1.0            # dwell sensitivity: hub sessions' dwell budgets x this (dwell campaign: 0.5)
+
+transport:
+  halt_speed_mps: 0.1         # a seeking vehicle slower than this is queued
+  queue_horizon_m: 1500       # only vehicles this close (driving distance) are considered
+  queue_gap_m: 20             # max gap between consecutive queued vehicles (contiguous chain)
+  # lambda_h counts a vehicle once per visit when it first comes within this driving distance
+  # of the hub (an approach geofence), moving or not. Counting on joining the queue chain
+  # instead made a long jam "arrive" in one burst when a gap closed.
+  arrival_geofence_m: 250
+  mean_dwell_s: 16874         # mean over the three profiles' real dwell (routing's wait estimate)

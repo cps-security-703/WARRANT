@@ -1,0 +1,41 @@
+# Phase 7 — adaptive attackers (RQ3): two-layer attacker: DQN (discrete: target, onset, duration) + SAC
+# (continuous: strength per decision step), retargeted from the IDS penalty to the contract
+# layer. Read by seams.experiments.train_attackers; the co-simulation is `config` (the RQ1
+# scenario: IEEE 34, 2035, contracts + renegotiation) with SUMO in-process for snapshots.
+rl:
+  config: seams/config/phase5.yaml
+  overrides: {}
+  # onset slots: the morning arrival peak (07:00), mid-morning, noon, the evening build-up
+  # (16:30, the scripted aggregator's onset) and the evening peak (18:30)
+  onsets_s: [25200, 34200, 43200, 59400, 66600]
+  durations_s: [1800, 3600, 7200]
+  tail_s: 3600                # after the window: no action, recovery and late detection count
+  targets:
+    fdi: [H1, H2, H3]
+    aggregator: [H1, H2, H3, HOME, ALL]   # ALL = the multi-site aggregator of the scripted scenario
+    navigation: [H1, H2, H3]
+  surfaces:
+    fdi: {bias_max_pu: 0.08, ramp_max_pu_per_min: 0.01}
+    aggregator: {}
+    navigation: {spoof_max: 30}
+  reward:
+    # within-contract: damage = undelivered kWh + w_delay x queueing veh.h + w_refused x refusals
+    # (vs the no-attack counterfactual). Weights are availability-equivalent assumptions: a
+    # vehicle-hour in a queue forgoes one hour of an L2 port (7.2 kW); a refusal forgoes a
+    # median real session (~10 kWh, ACN/EV WATTS).
+    w_delay_kwh_per_veh_h: 7.2
+    w_refused_kwh: 10.0
+    damage_scale_kwh: 10.0    # reward unit
+    detection_penalty: 20.0   # terminal, in reward units (= 200 kWh of damage)
+    # inter-sample: Phi_safe margin consumed, in units of v_scale_pu (voltage) / loading_scale
+    v_scale_pu: 0.01
+    loading_scale: 0.1
+    violation_bonus: 5.0      # per fine step in violation of Phi_safe the counterfactual did not have
+  train_seeds: [3000, 3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009]
+  eval_seeds: [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009]
+  training:
+    rounds: 3                 # alternate SAC (arms from DQN) and DQN (SAC frozen)
+    sac_steps: 15000          # per round
+    dqn_episodes: 300         # per round
+    arm_temperature: 0.5      # softmax over DQN Q-values -> SAC's arm distribution
+    arm_floor: 0.2            # share of uniform arm draws kept for exploration

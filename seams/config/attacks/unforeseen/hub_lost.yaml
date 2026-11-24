@@ -1,0 +1,5 @@
+# RQ4 unforeseen fault (HELD OUT: never tune contract templates or agent prompts on it).
+# Hub H1 lost entirely at the 08:00 arrival peak for two hours (breaker open: equipment failure).
+# Its vehicles are routed to H2 and H3, whose arrival quotas were not sized for them.
+attacks:
+  - {type: hub_outage, target: H1, onset_s: 28800, duration_s: 7200}

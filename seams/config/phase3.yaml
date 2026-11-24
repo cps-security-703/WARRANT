@@ -1,0 +1,26 @@
+# Phase 3 — monitors and attribution. Contracts are fixed (theta_static) and only monitored:
+# no shields, no renegotiation. Same protection-only system underneath as Phase 2.
+base: phase2.yaml
+
+contracts:
+  monitor: true
+  # theta_static is produced by `python -m seams.experiments.calibrate` from nominal days on
+  # CALIBRATION seeds (disjoint from evaluation seeds). Missing file -> calibration mode
+  # (permissive theta, residuals logged only).
+  theta_file: seams/config/contracts_static_{feeder}_{elec}_{delta_s}s.yaml
+  # arrival and physics windows in seconds (one contract period is always included);
+  # one period alone cannot separate a sustained surge or slow ramp from nominal bursts
+  windows_s: [300, 1800]
+  sensitivity_every_s: 300    # the grid publishes S, T (and Sq) at this cadence, whatever Delta is
+  sensitivity_dp_kw: 2.0      # finite-difference probe, ~2 % of hub rating
+  tol: {kw: 0.05, pu: 1.0e-6} # numerical tolerance on robustness, per unit
+  calibration:
+    seeds: [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009]  # real days vary: 10
+    lam_quantile: 1.0         # lam_bar_w = this quantile of nominal arrivals over w periods ...
+    lam_margin_frac: 0.2      # ... times (1 + this) ...
+    lam_margin: 1             # ... plus this many vehicles
+    beta_quantile: 1.0        # beta_w = this quantile of |residual| ... (real data: heavier tails than synthetic)
+    beta_margin: 0.25         # ... times (1 + margin)
+  # Pre-registered acceptance (before evaluation): mean false incidents per nominal day
+  # on evaluation seeds must be <= this.
+  max_false_incidents_per_day: 1.0

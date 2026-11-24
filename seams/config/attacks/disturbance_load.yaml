@@ -1,0 +1,4 @@
+# Review experiment E3: accidental grid disturbance, no attacker. A large customer load (constant
+# power, pf 0.95) switches on at H1's MV bus at 16:30 for 2 h; kw is the strength.
+attacks:
+  - {type: load_step, target: H1, bus: "830", kw: 200, onset_s: 59400, duration_s: 7200}

@@ -1,0 +1,9 @@
+# Feeder FDI on reported telemetry V_rep at one hub. bias_pu < 0 reports a falsely low voltage
+# (needless derating -> curtailment); bias_pu > 0 hides a real undervoltage. Ground truth: grid.
+attacks:
+  - type: fdi
+    target: H1
+    onset_s: 59400
+    duration_s: 7200
+    bias_pu: -0.04            # strength: final falsification
+    ramp_pu_per_min: 0.004    # strength: how fast the bias is reached

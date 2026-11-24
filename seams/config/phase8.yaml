@@ -1,0 +1,62 @@
+# Phase 8 — operator agents (RQ4). The Phase 5 scenario (IEEE 34, 2035, contracts +
+# renegotiation) with one LLM agent per operator negotiating on top of the classical path
+# (seams.contracts.renegotiate -> seams.agents.protocol). Safety never depends on the agents:
+# every candidate passes the same verifier gate as the classical optimizer's contract, and the
+# classical decision is installed whenever agents do not agree in time.
+base: phase5.yaml
+
+agents:
+  enabled: true
+  roles: [fleet, charging, utility]
+  # Backbone (decision: low-cost, pinned): primary google/gemini-3.6-flash; model ablation
+  # anthropic/claude-haiku-5.5 (another vendor, same cost class). temperature 0, seed 0, every
+  # response recorded in the replay cache.
+  backbone: gemini36flash
+  backbones:
+    gemini36flash:
+      model: google/gemini-3.6-flash
+      temperature: 0.0
+      reasoning: minimal          # no hidden reasoning tokens (latency, cost)
+      max_tokens: 4000
+      price_in_per_mtok: 0.75     # OpenRouter list price, 2026-11-09
+      price_out_per_mtok: 3.75
+    haiku55:
+      model: anthropic/claude-haiku-5.5
+      temperature: null           # OpenRouter's Haiku 5.5 accepts neither temperature nor seed (2026-11-09):
+                                  # provider default; reproducibility rests on the replay cache
+      schema_compat: anyof_enums  # strict mode rejects an enum on a nullable type (seams.agents.llm)
+      reasoning: null
+      max_tokens: 4000
+      price_in_per_mtok: 0.10
+      price_out_per_mtok: 0.50
+  # record: replay a recorded response, call the API otherwise; replay: cache only (a miss fails)
+  mode: record
+  cache: ~/seams_runs/llm_cache.sqlite   # outside the repository (SQLite WAL and cloud sync do not mix)
+  max_candidates: 2           # k proposals per agent per round
+  revise_rounds: 1            # one revision with the counterexamples
+  deadline_s: 120             # one contract period
+  # Triggers: a new degraded mode (blame), or the classical path dropping into theta_safe; at
+  # most one negotiation per cooldown (the classical renegotiator runs every period; agents
+  # cannot). An agreed plan covers the V2 horizon and is re-certified every period.
+  cooldown_periods: 5         # 10 min
+  min_validity_leads: 5       # shortest ValidityWindow (10 min): at least the cooldown, so an expiring plan can be renegotiated
+  forecast_periods: 15        # agents' persistence forecasts over the last 30 min
+  # What an agreed plan does in later periods. lock (the naive protocol, RQ4 baseline): the plan as
+  # agreed, while it re-certifies. floor: the plan raised to the classical decision of the period
+  # (per-party max), certified as a whole, so the agents can only relax the classical contract
+  # (lock-in finding, 2026-11-10: a locked plan falls 10-16 kW/hub below the classical path's
+  # re-optimised caps within 3 periods).
+  plan_mode: lock
+  # Agreement rule (decision): unanimous acceptance; the best rank sum among the candidates every
+  # agent accepts; the classical decision is the default otherwise.
+
+# RQ4 fault sets. The unforeseen set is fixed here, before any prompt is tuned, and is never used
+# for tuning: two simultaneous faults, a hub lost entirely, an aggregator compromise with a
+# concurrent FDI elsewhere, and an event-day arrival surge (no attacker).
+rq4:
+  foreseen: [navigation, fdi, aggregator]          # the scripted scenarios (RQ1-RQ2)
+  unforeseen:
+    nav_fdi_same_hub: seams/config/attacks/navigation_fdi.yaml
+    hub_lost: seams/config/attacks/unforeseen/hub_lost.yaml
+    aggregator_plus_fdi: seams/config/attacks/unforeseen/aggregator_plus_fdi.yaml
+    arrival_surge: seams/config/attacks/unforeseen/arrival_surge.yaml   # its `set:` is applied by the campaign

@@ -1,0 +1,11 @@
+# Review experiment E7: coordinated two-meter FDI at H1. The hub's LV reading and the feeder RTU's
+# MV reading at its bus are falsified consistently (MV by bias / b_h), so the grid's chi-square
+# bad-data detector sees no residual (Liu et al., CCS 2009). Same timing as fdi.yaml. Ground truth: grid.
+attacks:
+  - type: fdi
+    target: H1
+    onset_s: 59400
+    duration_s: 7200
+    bias_pu: -0.04
+    ramp_pu_per_min: 0.004
+    two_meter: true

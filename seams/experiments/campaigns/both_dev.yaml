@@ -1,0 +1,20 @@
+# Review experiment A (dev): WARRANT with distrust_estimator "both" (estimate from the PCC-only
+# anchor, exit only once V_rep agrees with both the anchor and the MV estimate). It targets the
+# trade-off in two_meter / anchor_screen: the MV estimator is poisoned by a two-meter FDI, the
+# anchor's exit bound grows past a -0.04 bias at 2045 on IEEE 34.
+# Development days only (3000-3009), on the cell where the anchor estimator regressed, with all
+# three estimators side by side; the rule is fixed before any evaluation day is run.
+name: both_dev
+out_dir: ~/seams_runs
+results_dir: seams/results
+seeds: [3000, 3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009]
+keep_fine: [3000]
+conditions:
+  mv: {config: seams/config/phase5.yaml, set: {scenario.electrification: "2045"}}
+  anchor: {config: seams/config/phase5.yaml, set: {scenario.electrification: "2045", renegotiation.distrust_estimator: anchor}}
+  both: {config: seams/config/phase5.yaml, set: {scenario.electrification: "2045", renegotiation.distrust_estimator: both}}
+schedulers: [EDF]
+scenarios:
+  nominal: {attack: null}
+  fdi: {attack: seams/config/attacks/fdi.yaml, param: attacks.0.bias_pu, values: [-0.04]}
+  fdi2: {attack: seams/config/attacks/fdi_two_meter.yaml, param: attacks.0.bias_pu, values: [-0.04]}

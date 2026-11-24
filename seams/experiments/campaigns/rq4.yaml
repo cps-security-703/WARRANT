@@ -1,0 +1,30 @@
+# RQ4 — agentic negotiation. Operator agents (structural + parametric, phase8.yaml) against the
+# classical optimizer alone (parametric, phase5.yaml) at the default conservatism (c = 1.0), on
+# the foreseen scripted scenarios (the RQ2 strengths) and the held-out unforeseen set (fixed in
+# phase8.yaml before any prompt tuning). Same seeds, so every agent run has a classical twin.
+# The model ablation (agents_haiku) is a separate pass: --only-condition agents_haiku.
+# agents_floor / agents_haiku_floor: the floor protocol, run after the naive one (--only-condition).
+name: rq4
+out_dir: ~/seams_runs
+results_dir: seams/results
+seeds: [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009]
+keep_fine: []
+conditions:
+  classical: {config: seams/config/phase5.yaml}
+  agents: {config: seams/config/phase8.yaml}
+  agents_haiku: {config: seams/config/phase8.yaml, set: {agents.backbone: haiku55}}
+  # the floor protocol (plan_mode: floor); agents / agents_haiku above are the naive (lock) baseline
+  agents_floor: {config: seams/config/phase8.yaml, set: {agents.plan_mode: floor}}
+  agents_haiku_floor: {config: seams/config/phase8.yaml, set: {agents.backbone: haiku55, agents.plan_mode: floor}}
+schedulers: [EDF]
+scenarios:
+  nominal: {attack: null}
+  navigation: {attack: seams/config/attacks/navigation.yaml, param: attacks.0.fraction, values: [0.25, 0.5, 0.75, 1.0]}
+  fdi: {attack: seams/config/attacks/fdi.yaml, param: attacks.0.bias_pu, values: [-0.005, -0.01, -0.02, -0.04]}
+  aggregator: {attack: seams/config/attacks/aggregator.yaml, param: attacks.*.fraction, values: [0.25, 0.5, 0.75, 1.0]}
+  # unforeseen (held out)
+  u_nav_fdi_same_hub: {attack: seams/config/attacks/navigation_fdi.yaml}
+  u_hub_lost: {attack: seams/config/attacks/unforeseen/hub_lost.yaml}
+  u_aggregator_plus_fdi: {attack: seams/config/attacks/unforeseen/aggregator_plus_fdi.yaml}
+  u_arrival_surge: {attack: seams/config/attacks/unforeseen/arrival_surge.yaml,
+                    set: {fleet.generator.sessions_per_port_day: {H1: 4.5, H2: 4.5, H3: 4.5}}}

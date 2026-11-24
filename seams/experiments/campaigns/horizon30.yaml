@@ -1,0 +1,18 @@
+# Targeted horizon measurement (2026-11-20): WARRANT with a 30 min instead of 1 h V2 horizon on
+# IEEE 34, the feeder where certification binds, mirroring the electrification campaign (whose
+# contracts runs are the 1 h pairs; FDI -0.02 at 2035 pairs with rq1). The main campaigns keep 1 h.
+name: horizon30
+out_dir: ~/seams_runs
+results_dir: seams/results
+seeds: [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009]
+keep_fine: [2000]
+conditions:
+  contracts_h30: {config: seams/config/phase5.yaml, set: {verifier.horizon_s: 1800}}
+axes:
+  - {name: elec, key: scenario.electrification, values: [today, "2035", "2045"]}
+schedulers: [EDF]
+scenarios:
+  nominal: {attack: null}
+  navigation: {attack: seams/config/attacks/navigation.yaml, param: attacks.0.fraction, values: [1.0]}
+  fdi: {attack: seams/config/attacks/fdi.yaml, param: attacks.0.bias_pu, values: [-0.02, -0.04]}
+  aggregator: {attack: seams/config/attacks/aggregator.yaml, param: attacks.*.fraction, values: [1.0]}

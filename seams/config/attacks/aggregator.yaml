@@ -1,0 +1,11 @@
+# Compromised multi-site aggregator, load-altering attack (see attacks/scripted/aggregator.py):
+# the aggregator runs all three hubs and its home chargers on the feeder (target HOME). From
+# 16:30 it holds every connected EV at zero (pending demand builds up as drivers plug in after
+# work), then at 18:30, with the feeder still near its peak, it releases a share `fraction` of
+# connected chargers at their maximum rate everywhere at once for an hour, ignoring derating
+# and infrastructure limits. Ground truth: charging.
+attacks:
+  - {type: aggregator, target: H1, onset_s: 59400, duration_s: 10800, hold_s: 7200, fraction: 1.0}
+  - {type: aggregator, target: H2, onset_s: 59400, duration_s: 10800, hold_s: 7200, fraction: 1.0}
+  - {type: aggregator, target: H3, onset_s: 59400, duration_s: 10800, hold_s: 7200, fraction: 1.0}
+  - {type: aggregator, target: HOME, onset_s: 59400, duration_s: 10800, hold_s: 7200, fraction: 1.0}

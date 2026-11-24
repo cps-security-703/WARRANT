@@ -1,0 +1,11 @@
+# Compromised AV-fleet dispatcher (attacks/scripted/dispatch.py; needs the AV fleet of
+# scenario.hub_kind: dcfc). From 17:30 a share `fraction` of the fleet is sent to charge at the
+# target with spoofed hub views, so it arrives in the feeder's peak hour (18:00-19:00 in the
+# load shape) at H2, the weakest hub bus of IEEE 123 in the hosting check. Ground truth: transport.
+attacks:
+  - type: dispatch
+    target: H2
+    onset_s: 63000
+    duration_s: 7200
+    fraction: 1.0             # strength: share of the AV fleet compromised
+    spoof_queue: 30

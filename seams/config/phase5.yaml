@@ -1,0 +1,42 @@
+# Phase 5 — classical renegotiation and fallback: degraded contracts, optimizer, theta_safe,
+# exit-aware admission, atomic switching at period boundaries. No agents (Phase 8).
+base: phase4.yaml
+
+clock:
+  # Delta = 2 min: at 5 min the FDI containment window was negative in 2/3 dev seeds (detection
+  # after the cascade crossed); at 1 and 2 min it was positive in 3/3 (+120..+240 s). 2 min
+  # costs about half the runtime of 1 min. Delta stays a sweep parameter for RQ2.
+  contract_period_s: 120.0
+
+contracts:
+  epsilon:
+    # D(k) up to 6 h, for distrust mode's older anchors: a 2 h attack + 30 min exit + the
+    # 30 min before the incident must fit, with the 1 h V2 horizon on top
+    drift_horizon_s: 21600
+
+renegotiation:
+  enabled: true
+  renegotiate_on_decertification: true  # also renegotiate when theta in force fails V2
+  exit_quiet_s: 1800          # a degraded mode ends after 30 min without blame
+  charging_cap_frac: 0.9      # charging blamed: P_bar_h <= 90 % of nominal
+  # "blame": degrade the blamed (domain, hub); "blind": any blame degrades every domain at
+  # every hub (the no-attribution baseline of RQ2)
+  attribution: blame
+  time_budget_ms: 2000        # over budget -> theta_safe (one period is 300 000 ms)
+  # optimizer weight per party: "laxity" = 1 / (1 + median laxity [h]) of the party's real
+  # sessions (seams.contracts.renegotiate.laxity_weights); {} = every kW alike
+  weights: laxity
+  # distrust-mode voltage estimate: "mv" = BDD model on the independent MV meter (needs the BDD
+  # file's est_err_max); "anchor" = PCC-only drift from a pre-incident anchor (ablation);
+  # "both" = estimate as "anchor", exit only once V_rep agrees with both (review experiment A)
+  distrust_estimator: mv
+  theta_safe_file: seams/config/contracts_safe_{feeder}_{elec}_{delta_s}s.yaml
+  safe_frac: 0.25             # theta_safe: P_bar = 25 % of nominal at every hub
+  safe_bg_levels: [0.15, 0.3, 0.5, 0.7, 0.85, 1.0]  # fractions of the envelope top (see phase4)
+  # theta_safe's certificate covers backgrounds up to the level where the feeder still meets
+  # Phi_safe at theta_safe; at most this share of the real days' quarter-hours may lie above
+  # it (2045: the feeder alone breaks Phi_safe there, which no charging contract can fix)
+  safe_max_out_of_scope: 0.02
+  safe_v_margin: 0.0          # offline certificate: min V >= v_min + margin. 0: at the real envelope
+                              # top the feeder alone sits ~0.955 pu (2035), so a 0.01 margin is not
+                              # something any contract can buy; the measured min V is recorded

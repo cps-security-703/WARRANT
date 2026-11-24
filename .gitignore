@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Secrets
+.env
+
+# Local run output (campaign data lives in ~/seams_runs)
+seams/runs/
+*.log
+
+# Raw third-party datasets (see README, "Data")
+adaptive_rl/evcs_data/
+adaptive_rl/acndata/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

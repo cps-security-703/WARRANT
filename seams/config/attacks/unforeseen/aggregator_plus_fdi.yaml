@@ -1,0 +1,10 @@
+# RQ4 unforeseen fault (HELD OUT: never tune contract templates or agent prompts on it).
+# Two concurrent faults in different domains: the multi-site aggregator compromise (half of the
+# connected chargers released at 18:30 after a 2 h hold) and, at the release, an FDI at H3
+# (-0.02 pu) that makes the grid side look like the cause there.
+attacks:
+  - {type: aggregator, target: H1, onset_s: 59400, duration_s: 10800, hold_s: 7200, fraction: 0.5}
+  - {type: aggregator, target: H2, onset_s: 59400, duration_s: 10800, hold_s: 7200, fraction: 0.5}
+  - {type: aggregator, target: H3, onset_s: 59400, duration_s: 10800, hold_s: 7200, fraction: 0.5}
+  - {type: aggregator, target: HOME, onset_s: 59400, duration_s: 10800, hold_s: 7200, fraction: 0.5}
+  - {type: fdi, target: H3, onset_s: 66600, duration_s: 3600, bias_pu: -0.02, ramp_pu_per_min: 0.004}

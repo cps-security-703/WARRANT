@@ -1,0 +1,4 @@
+# Review experiment E3: accidental sensor failure, no attacker. H1's LV voltage meter freezes at
+# its last reading at 16:30 for 2 h, while the evening load keeps moving the true voltage.
+attacks:
+  - {type: meter_stuck, target: H1, onset_s: 59400, duration_s: 7200}

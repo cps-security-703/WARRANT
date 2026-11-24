@@ -1,0 +1,49 @@
+# RQ5 — Byzantine negotiator. One operator's agent compromised, the floor protocol (phase9.yaml,
+# Gemini), each strategy x compromised domain x {physical attack inactive (nominal), active}.
+#   transport = fleet agent + navigation; charging = charging agent + aggregator; grid = utility + FDI
+# Baseline: honest negotiation (same days, seeds). Mitigation row: stall limit (exclusion after 2
+# consecutive stalls). Physical attacks at the strongest RQ2/RQ4 strength. Gate: zero Phi_safe
+# violations across every run (agent independence).
+name: rq5
+out_dir: ~/seams_runs
+results_dir: seams/results
+seeds: [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009]
+keep_fine: []
+schedulers: [EDF]
+scenarios:
+  nominal: {attack: null}
+  navigation: {attack: seams/config/attacks/navigation.yaml, param: attacks.0.fraction, values: [1.0]}
+  aggregator: {attack: seams/config/attacks/aggregator.yaml, param: attacks.*.fraction, values: [1.0]}
+  fdi: {attack: seams/config/attacks/fdi.yaml, param: attacks.0.bias_pu, values: [-0.04]}
+conditions:
+  honest: {config: seams/config/phase9.yaml}
+  cost_shift_fleet: {config: seams/config/phase9.yaml, scenarios: [nominal, navigation],
+    set: {agents.byzantine: {role: fleet, strategy: cost_shift, misreport_scale: 3.0}}}
+  cost_shift_charging: {config: seams/config/phase9.yaml, scenarios: [nominal, aggregator],
+    set: {agents.byzantine: {role: charging, strategy: cost_shift, misreport_scale: 3.0}}}
+  cost_shift_utility: {config: seams/config/phase9.yaml, scenarios: [nominal, fdi],
+    set: {agents.byzantine: {role: utility, strategy: cost_shift, misreport_scale: 3.0}}}
+  stall_fleet: {config: seams/config/phase9.yaml, scenarios: [nominal, navigation],
+    set: {agents.byzantine: {role: fleet, strategy: stall, misreport_scale: 3.0}}}
+  stall_charging: {config: seams/config/phase9.yaml, scenarios: [nominal, aggregator],
+    set: {agents.byzantine: {role: charging, strategy: stall, misreport_scale: 3.0}}}
+  stall_utility: {config: seams/config/phase9.yaml, scenarios: [nominal, fdi],
+    set: {agents.byzantine: {role: utility, strategy: stall, misreport_scale: 3.0}}}
+  setup_fleet: {config: seams/config/phase9.yaml, scenarios: [nominal, navigation],
+    set: {agents.byzantine: {role: fleet, strategy: setup, misreport_scale: 3.0}}}
+  setup_charging: {config: seams/config/phase9.yaml, scenarios: [nominal, aggregator],
+    set: {agents.byzantine: {role: charging, strategy: setup, misreport_scale: 3.0}}}
+  setup_utility: {config: seams/config/phase9.yaml, scenarios: [nominal, fdi],
+    set: {agents.byzantine: {role: utility, strategy: setup, misreport_scale: 3.0}}}
+  misreport_fleet: {config: seams/config/phase9.yaml, scenarios: [nominal, navigation],
+    set: {agents.byzantine: {role: fleet, strategy: misreport, misreport_scale: 3.0}}}
+  misreport_charging: {config: seams/config/phase9.yaml, scenarios: [nominal, aggregator],
+    set: {agents.byzantine: {role: charging, strategy: misreport, misreport_scale: 3.0}}}
+  misreport_utility: {config: seams/config/phase9.yaml, scenarios: [nominal, fdi],
+    set: {agents.byzantine: {role: utility, strategy: misreport, misreport_scale: 3.0}}}
+  stall_limit_fleet: {config: seams/config/phase9.yaml, scenarios: [nominal, navigation],
+    set: {agents.byzantine: {role: fleet, strategy: stall}, agents.stall_limit: 2}}
+  stall_limit_charging: {config: seams/config/phase9.yaml, scenarios: [nominal, aggregator],
+    set: {agents.byzantine: {role: charging, strategy: stall}, agents.stall_limit: 2}}
+  stall_limit_utility: {config: seams/config/phase9.yaml, scenarios: [nominal, fdi],
+    set: {agents.byzantine: {role: utility, strategy: stall}, agents.stall_limit: 2}}

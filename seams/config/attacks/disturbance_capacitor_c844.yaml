@@ -1,0 +1,4 @@
+# Review experiment E3: accidental grid disturbance, no attacker. A feeder capacitor bank is
+# switched out at 16:30 for 2 h (C844: upstream of H2 and H3 on the same lateral).
+attacks:
+  - {type: capacitor_trip, target: C844, onset_s: 59400, duration_s: 7200}

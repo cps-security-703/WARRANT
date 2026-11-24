@@ -1,0 +1,9 @@
+condition,site,requested_kWh,delivered_kWh
+contracts,H1,396.2,371.4
+contracts,H2,502.2,478.4
+contracts,H3,367.5,359.4
+contracts,HOME,223.5,214.5
+protection_only,H1,399.5,391.0
+protection_only,H2,519.5,496.5
+protection_only,H3,346.6,339.4
+protection_only,HOME,223.5,216.0

@@ -1,0 +1,15 @@
+# Phase 9 — Byzantine negotiator (RQ5). The Phase 8 floor protocol (Gemini backbone) with one
+# operator's agent compromised. The compromised domain's agent stays at the table; it cannot get an
+# uncertified contract enforced (seams.agents.gate), so it attacks availability and fairness.
+# Strategies (seams.agents.operator_agent.BYZANTINE): cost_shift, stall, setup, misreport. Each is
+# run with the compromised domain's physical attack active and inactive (rq5 campaign):
+#   transport -> fleet agent    + navigation manipulation
+#   charging  -> charging agent + aggregator compromise
+#   grid      -> utility agent  + FDI on the hub voltage
+# Baseline: honest negotiation (byzantine null) on the same days and seeds.
+base: phase8.yaml
+
+agents:
+  plan_mode: floor
+  byzantine: null             # {role: fleet|charging|utility, strategy: ..., misreport_scale: 3.0}
+  stall_limit: null           # mitigation: exclude an agent after n consecutive stalls (rq5 stall_limit rows)

@@ -1,0 +1,52 @@
+# Phase 0 — single-vehicle handoff (SUMO -> ACN-Sim -> SUMO).
+# Values are starting points, not results.
+
+run:
+  seed: 42
+  horizon_s: 14400            # 4 h simulated
+  out_dir: seams/runs
+
+clock:
+  sumo_step_s: 1.0            # SUMO step inside each fine period
+  fine_period_s: 60.0         # delta: ACN-Sim and OpenDSS period
+  contract_period_s: 300.0    # Delta: monitors / verifier period
+
+sumo:
+  sumo_home: ~/sumo           # used when $SUMO_HOME is unset
+  scenario_dir: seams/scenarios/phase0
+  gui: false
+
+network:                      # netgenerate grid
+  grid_number: 5
+  grid_length_m: 300
+  lanes: 1
+
+hubs:
+  - {id: H1, edge: B2C2, n_evse: 4}
+  - {id: H2, edge: C3D3, n_evse: 4}
+  - {id: H3, edge: D1D2, n_evse: 4}
+
+evse:
+  max_rate_a: 32.0
+  voltage_v: 240.0
+  hub_aggregate_limit_a: 96.0 # fixed limit in Phase 0 (no grid yet)
+  scheduler: EDF              # EDF | LLF | RR | UNCONTROLLED
+
+ev:
+  capacity_wh: 64000
+  target_soc: 0.8             # requested energy = target_soc * capacity - charge
+  obc_kw: 7.7                 # on-board charger limit
+  low_soc_threshold: 0.20
+  max_charge_visits: 1
+
+trip_types:                   # dwell budget = how long a vehicle may stay plugged
+  fleet: {dwell_s: 3600}
+  commuter: {dwell_s: 7200}
+  ridehail: {dwell_s: 1800}
+
+fleet:                        # Phase 0: explicit vehicles
+  vehicles:
+    - {id: ev0, from: A0A1, to: E3E4, depart_s: 0, init_soc: 0.202, trip_type: commuter}
+
+bridge:
+  release_tol_kwh: 0.01       # "fully served" when remaining demand is below this

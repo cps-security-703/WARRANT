@@ -1,0 +1,9 @@
+# Navigation manipulation: a fraction of vehicles see the target hub as empty and the other
+# hubs as congested (spoofed a_h), so they converge on the target. Ground truth: transport.
+attacks:
+  - type: navigation
+    target: H1
+    onset_s: 27000            # 07:30: the arrival peak (real sessions: few vehicles seek a charger at 16:30)
+    duration_s: 7200
+    fraction: 0.6             # strength: share of the fleet whose routing inputs are spoofed
+    spoof_queue: 30           # strength: queue shown at the non-target hubs
