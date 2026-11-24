@@ -285,7 +285,7 @@ python -m seams.viz.live aggregator --electrification 2045 --save aggregator.mp4
 
 Raw run data goes to `~/seams_runs/<campaign>/`, outside the repository. A campaign skips every
 run that already has `metrics.json`, so an interrupted campaign resumes where it stopped. From
-scratch on 10 cores the pipeline takes several days (RQ3 alone about 2.5 days). Launch long
+scratch on 10 cores, the pipeline takes several days (RQ3 alone about 2.5 days). Launch long
 stages detached, for example `nohup ./run_all.sh --stages campaigns > campaigns.log 2>&1 &`.
 
 > **Note:** Any process that has imported `libsumo` cannot call `pandas.read_parquet`, because of a conflicting Arrow build. Analysis modules therefore read results in their own process.
@@ -305,7 +305,7 @@ here:
 |---|---|---|
 | [ACN-Data](https://ev.caltech.edu/dataset) (Caltech, Pasadena; Lee, Li & Low, e-Energy 2019) | workplace charging sessions | `adaptive_rl/acndata/` |
 | [EV WATTS](https://livewire.energy.gov/project/evwatts) (DOE / Energetics), Pacific region | public, retail, home and DC fast-charging sessions; SOC at plug-in; trip lengths | `adaptive_rl/evcs_data/evwatts.public/` |
-| [NREL ResStock / ComStock](https://www.nrel.gov/buildings/end-use-load-profiles.html) 2021, AMY 2018, Los Angeles County | feeder load shape and ambient temperature | `~/seams_data/raw/` (`--raw`) |
+| [NREL ResStock / ComStock](https://www.nlr.gov/buildings/end-use-load-profiles.html) 2021, AMY 2018, Los Angeles County | feeder load shape and ambient temperature | `~/seams_data/raw/` (`--raw`) |
 
 The road network is built from OpenStreetMap (© OpenStreetMap contributors, ODbL). The IEEE 34
 and IEEE 123 feeders are the standard OpenDSS test cases.
