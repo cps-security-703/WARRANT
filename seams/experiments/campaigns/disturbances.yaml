@@ -10,7 +10,7 @@ conditions:
   contracts: {config: seams/config/phase5.yaml}
   # review experiment C: the detect-and-respond baseline (E1/B) on the same honest events
   ids_response: {config: seams/config/phase2.yaml, set: {ids_response.enabled: true}}
-  ids_response_tids: {config: seams/config/phase2.yaml, set: {ids_response.enabled: true, ids_response.detector: transformer}}
+  ids_response_tids: {config: seams/config/phase2.yaml, set: {ids_response.enabled: true, ids_response.detector: spear_transformer}}
 schedulers: [EDF]
 scenarios:
   capacitor_c848: {attack: seams/config/attacks/disturbance_capacitor.yaml}

@@ -1,3 +1,17 @@
+"""Interface signals per seam, aggregated from fine-step records into one value per contract
+period (the coarse view monitors and verifier see). Period value = mean over the period.
+
+Transport -> charging : lambda_h  attempted arrivals (reached the hub: queued or parked),
+                                  counted before any admission shield
+Charging  -> grid     : P_req_h   power requested at the PCC limiter input (pre-shield)
+                        P_h       power at the PCC, trusted meter
+                        (and the same two for the aggregator's home portfolio, party HOME:
+                        AMI-metered total and the pre-cap request)
+Grid      -> charging : V_rep_h   reported voltage;  d_h  allowance in force
+                        V_mv_rep_h  MV voltage at the hub's bus (feeder RTU, an independent meter)
+Grid (published each Delta, for the next period's physics check):
+                        S[h][j]   dV_h/dP_j,  T[h][r]  dV_h/dtap_r,  taps  mean tap positions
+"""
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -18,6 +32,8 @@ class PeriodSignals:
 
 
 def aggregate(k, period_records, hubs, voltage_v, home=False):
+    """period_records: the period's fine-step log records (all hubs). home: add the aggregator's
+    home portfolio (HOME) to the power seam: P from trusted AMI aggregates, P_req pre-cap."""
     by_hub = {h: [r for r in period_records if r["hub"] == h] for h in hubs}
     taps = np.mean([[float(t) for t in r["taps"].split(",")] for r in by_hub[hubs[0]]], axis=0)
     sig = PeriodSignals(

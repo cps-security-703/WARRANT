@@ -1,3 +1,17 @@
+"""Autonomous ride-hail fleet (config `av_fleet`, part of the fast-charging scenario).
+
+Each AV is a persistent vehicle that serves rides from start_s to end_s. A ride is one SUMO
+trip (id <av>_r<n>) from where the last ride ended to an edge about a real trip length away
+(EV WATTS trip lengths, capped to the network); between rides the AV idles idle_s. Its battery
+carries over from ride to ride. The honest dispatcher sends an AV to charge at the start of a
+ride when its SOC is below charge_soc (the fleet's routing then picks the hub); mid-ride, the
+fleet's own low-SOC rule applies. AV sessions leave the charger as soon as they are served
+(trip_types.av.release_on_complete).
+
+A compromised dispatcher (attacks/scripted/dispatch.py) may first call drain(): member AVs get
+back-to-back long rides and are not sent to charge, so their batteries run down; then force():
+each member AV is sent to charge once, on its current ride, or at once if it is idle.
+"""
 import numpy as np
 
 from seams.domains.transport.fleet import VState
@@ -37,6 +51,7 @@ class AvFleet:
 
     @staticmethod
     def av_of(vid):
+        """AV id of a ride vehicle id, or None for any other vehicle."""
         return vid.split("_r")[0] if vid and vid.startswith("av") and "_r" in vid else None
 
     def force(self, members):
@@ -44,6 +59,8 @@ class AvFleet:
             self.forced.setdefault(m, False)
 
     def drain(self, members):
+        """Back-to-back rides at the long end of the trip lengths, and no dispatcher-sent
+        charging (the vehicle's own low-SOC rule, ev.low_soc_threshold, still applies)."""
         self.draining = set(members)
 
     def _destination(self, origin, longest=False):
@@ -65,6 +82,7 @@ class AvFleet:
         av["next_s"] = t_s + self.idle_s[0]  # no route now; try again later
 
     def step(self, t_s, fleet):
+        """After SUMO advanced: close finished rides, initialise new ones, start due rides."""
         present = set(self.sumo.vehicle_ids())
         for av in self.avs:
             vid = av["ride"]

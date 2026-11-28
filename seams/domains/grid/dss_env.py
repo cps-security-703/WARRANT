@@ -1,3 +1,15 @@
+"""OpenDSS adapter: IEEE 34-bus feeder plus one service transformer and one EV load per hub.
+
+Owns the true physical state only. What the grid *reports* lives in telemetry.py, and what the
+hub draws is measured by the trusted PCC meter (pcc_meter.py).
+
+Modeling choices (from probing the feeder, see Phase 1 notes in the README):
+- Regulators stay active (static control at every solve). Locked taps push light-load
+  voltages to ~1.17 pu, so a full day is impossible without them. Tap positions are part of
+  the true state and are logged.
+- Hub voltage V_h is the hub's low-voltage PCC bus, where hub power moves voltage through the
+  service transformer impedance; the 24.9 kV bus voltage is logged as well.
+"""
 from dataclasses import dataclass
 
 import numpy as np
@@ -56,6 +68,7 @@ class GridAdapter:
 
     @staticmethod
     def _background_loads():
+        """Base kW/kvar of every non-hub load, so a multiplier never scales the hubs."""
         base = {}
         for name in dss.Loads.AllNames():
             if not name.startswith(("ev_", "home_")):
@@ -70,6 +83,8 @@ class GridAdapter:
             dss.Loads.kvar(kvar * mult)
 
     def _add_home_loads(self, pf):
+        """One constant-power home-charging load beside every background load element, on the
+        same bus, phases, connection and voltage (residential chargers sit where the load is)."""
         self.home_pf = pf
         for name in sorted(self.background):
             dss.Loads.Name(name)
@@ -85,9 +100,12 @@ class GridAdapter:
         self.set_home_weights(self.home_elements())
 
     def home_elements(self):
+        """{background load element: nominal kW}: where home chargers can be attached."""
         return {name: kw for name, (kw, _) in self.background.items()}
 
     def set_home_weights(self, weights):
+        """Where the aggregator's home portfolio sits: {element: share}, summing to 1. A change
+        of the portfolio's total power in a sensitivity probe is spread by these shares."""
         tot = float(sum(weights.values())) or 1.0
         self.home_weights = {n: w / tot for n, w in weights.items()}
         self.home_kw = {n: 0.0 for n in self.home}
@@ -108,11 +126,14 @@ class GridAdapter:
         return sum(self.home_kw.values()) if j == HOME else self.hub_kw[j]
 
     def set_party_power(self, j, kw):
+        """Hub: its PCC load. HOME: the portfolio total, spread by the portfolio's shares (large-
+        signal probes and calibration only; the run sets home loads per element)."""
         if j != HOME:
             return self.set_hub_power(j, kw)
         self._home_loads({n: max(0.0, kw) * w for n, w in self.home_weights.items()})
 
     def _home_loads(self, kw_by_element):
+        """Write home loads without changing the recorded operating point (home_kw)."""
         q = np.tan(np.arccos(self.home_pf))
         for name, kw in kw_by_element.items():
             dss.Loads.Name(self.home[name])
@@ -130,6 +151,11 @@ class GridAdapter:
         dss.Loads.kvar(kw * np.tan(np.arccos(self.pf)))
 
     def sensitivity(self, dp_kw):
+        """Published by the grid each contract period, at the current operating point:
+          S[h][j] = dV_h / dP_j      [pu/kW]   hub-power sensitivity
+          T[h][r] = dV_h / dtap_r    [pu/step] regulator-tap sensitivity
+        by finite difference. Taps are frozen during the probes (a probe must not move a tap)
+        and the operating point is restored afterwards."""
         dss.Text.Command("Set Controlmode=OFF")
         dss.Solution.Solve()
         base = self._v_lv()
@@ -161,6 +187,11 @@ class GridAdapter:
         return S, T
 
     def sensitivity_qss(self, p_max):
+        """Quasi-steady-state (large-signal, regulators acting) sensitivity, for the verifier:
+          Sq[h][j] = (V_h(P_j = p_max_j) - V_h(P_j = 0)) / p_max_j, other hubs as they are.
+        At the fine step the regulators re-settle within the solve, so a large hub swing moves
+        voltage far less than the frozen-tap S predicts. Taps and loads are restored exactly
+        afterwards, so the physical trajectory is unchanged."""
         taps0 = {r: self._tap(r) for r in self.regulators}
         Sq = {h: {} for h in self.hubs}
         dss.Text.Command("Set Controlmode=STATIC")

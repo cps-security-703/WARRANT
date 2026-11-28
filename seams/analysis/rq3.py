@@ -1,3 +1,22 @@
+"""RQ3 (Phase 7): summary table and figures for the trained adaptive attackers.
+
+    python -m seams.analysis.rq3 [--runs ~/seams_runs/rq3] [--results seams/results] [--pdf]
+
+Input: one directory per attacker from seams.experiments.train_attackers (eval.parquet, the
+eval/attack_s*/nominal_s* run logs, the sac/dqn monitor CSVs, q_r*.json). Output:
+<results>/rq3_summary.csv (one row per attacker and held-out seed) and <results>/figures/rq3_*.png.
+Attackers not trained yet are skipped.
+
+Per seed, beyond the campaign metrics already in eval.parquet:
+  trip_delay_veh_h   sum over vehicles that arrived in both runs of the extra travel time
+                     (attack minus nominal twin, matched by vehicle id)
+  gap_periods        abstraction gap: contract periods whose coarse view was compliant (every
+                     finite robustness >= 0, no blame) while a fine step inside the period violated
+                     Phi_safe on the true state or a hub drew more than its contracted P_bar
+  headroom_used      inter-sample: share of the voltage headroom the attack used at its deepest,
+                     1 - min margin_v (attack) / min margin_v (nominal twin) over the attack window
+                     [onset, onset + duration], all hubs, clipped at 0; 1 = a violation
+"""
 import argparse
 import json
 from pathlib import Path
@@ -16,6 +35,9 @@ P_TOL_KW = 1e-3
 
 
 def attackers(runs):
+    """(name, mode, surface, box, year, use_epsilon, stress, rounds) for every trained attacker
+    under runs. Tags: 2045, noeps, stress (no detection penalty or termination, larger bounds),
+    r<n> (training continued to n rounds)."""
     out = []
     for d in sorted(Path(runs).glob("*/eval.parquet")):
         name = d.parent.name
@@ -27,6 +49,7 @@ def attackers(runs):
 
 
 def latest(df):
+    """One attacker per configuration: the longest-trained one."""
     key = ["mode", "surface", "box", "year", "use_epsilon", "stress"]
     best = df.groupby(key).rounds.transform("max")
     return df[df.rounds == best]
@@ -40,6 +63,9 @@ def trip_delay_veh_h(att_dir, nom_dir):
 
 
 def gap_periods(run_dir):
+    """Abstraction gap of one run (see the module docstring). Contract row k monitors fine steps
+    per*k .. per*k + per - 1 (t_fine is the fine-step index); the P_bar it decides is in force
+    over the next period."""
     clock = yaml.safe_load((Path(run_dir) / "config.yaml").read_text())["clock"]
     per = round(float(clock["contract_period_s"]) / float(clock["fine_period_s"]))
     c = pd.read_parquet(Path(run_dir) / "contract.parquet")
@@ -60,6 +86,8 @@ def gap_periods(run_dir):
 
 
 def headroom_used(att_dir, nom_dir, onset_s, duration_s):
+    """Share of the nominal twin's smallest voltage margin over the attack window that the attack
+    used (see the module docstring); NaN if the twin itself has no headroom there."""
     lo, hi = [], []
     for d in (att_dir, nom_dir):
         f = pd.read_parquet(Path(d) / "fine.parquet", columns=["t_fine", "margin_v"])
@@ -98,6 +126,7 @@ def summary(runs):
 
 
 def _bars(ax, labels, groups, style, values):
+    """Grouped bars: labels on x, one bar per group key, mean and bootstrap 95 % CI."""
     w = 0.8 / len(groups)
     for i, g in enumerate(groups):
         stats = [ci(values(lab, g)) for lab in labels]
@@ -159,6 +188,7 @@ def figures(df, runs, out, pdf):
 
 
 def learning_curve(d, out, pdf, window=50):
+    """SAC episode return over all rounds (rolling mean), round boundaries dashed."""
     parts = sorted(d.glob("sac_monitor_r*.monitor.csv"), key=lambda p: int(p.name.split("_r")[1].split(".")[0]))
     if not parts:
         return []
@@ -177,6 +207,7 @@ def learning_curve(d, out, pdf, window=50):
 
 
 def q_rounds(runs):
+    """Best-arm Q value per training round, per attacker (convergence table)."""
     rows = {}
     for a in attackers(runs):
         qs = sorted(Path(runs, a["name"]).glob("q_r*.json"))

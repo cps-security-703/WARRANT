@@ -1,3 +1,13 @@
+"""Regenerate every figure from the campaign logs with one command (the Phase 6 gate).
+
+    python -m seams.analysis.make_figures [--results seams/results] [--pdf]
+
+Inputs: <results>/{rq1,rq2,delta,electrification,feeder123}_summary.parquet (one row per run)
+and, for trajectories, the
+kept fine logs of seed 2000 under the rq1 campaign's out_dir. Every figure is its own file
+(analysis/figures.py style); means with bootstrap 95 % CIs over seeds. Missing inputs are skipped
+with a note, so partial campaigns still render what they can.
+"""
 import argparse
 from pathlib import Path
 
@@ -20,6 +30,7 @@ SCENARIOS = ("navigation", "fdi", "aggregator")
 
 
 def ci(values, n_boot=2000, seed=0):
+    """Mean and bootstrap 95 % CI half-widths (lo, hi) of a 1-D sample."""
     x = np.asarray([v for v in values if v is not None and not pd.isna(v)], dtype=float)
     if len(x) == 0:
         return np.nan, np.nan, np.nan
@@ -32,6 +43,7 @@ def ci(values, n_boot=2000, seed=0):
 
 
 def contained(df):
+    """A run is contained when nothing fails outside its origin domain(s)."""
     def ok(r):
         fail = set(filter(None, str(r.get("failing") or "").split(",")))
         orig = set(filter(None, str(r.get("origin") or "").split(",")))
@@ -148,6 +160,7 @@ def rq1(df, out):
 
 
 def containment_window(df, out):
+    """FDI: tau_cross (protection-only twin) - tau_detect (contracts), per seed and strength."""
     base = df[(df.condition == "protection_only") & (df.scenario == "fdi")][["scheduler", "strength", "seed", "tau_cross_s"]]
     con = df[(df.condition == "contracts") & (df.scenario == "fdi")]
     j = con.merge(base, on=["scheduler", "strength", "seed"], suffixes=("", "_base"))
@@ -249,6 +262,8 @@ ELEC_TICK = {"today": "Today", "2035": "2035", "2045": "2045"}
 
 
 def electrification(df, out, prefix):
+    """Per scenario: cascade depth and contained share vs electrification level, protection
+    only vs contracts; nominal-day cost; feeder-only (out-of-scope) violations under contracts."""
     made = []
     d = df.copy()
     d["elec"] = d.elec.astype(str)

@@ -1,3 +1,15 @@
+"""RQ4 across contract conservatism: the floor protocol (Gemini) against the classical optimizer at
+c = 0.6, 1.0 and 1.25.
+
+    python -m seams.analysis.rq4_conservatism [--results seams/results] [--pdf]
+
+Input: <results>/rq4_conservatism_summary.parquet (c = 0.6, 1.25) and the matching rows of
+<results>/rq4_summary.parquet (c = 1.0; nominal, navigation 1.0, fdi -0.04, aggregator 1.0).
+Output: <results>/rq4_conservatism_table.csv and <results>/figures/rq4_conservatism_*.png.
+Per c: mean paired difference (floor - classical) of hub unserved energy per run (one simulated
+day), runs better / worse, Wilcoxon signed-rank p, agreed periods per day, and the gate counts
+(certified_share = share of installed contracts certified, must be 1).
+"""
 import argparse
 from pathlib import Path
 

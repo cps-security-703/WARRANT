@@ -1,0 +1,10 @@
+# Review R2 (safety attack): grid telemetry falsification with a POSITIVE bias. The reported voltage
+# at H1 reads higher than the true voltage, so derating does not act on a real undervoltage and the
+# hub keeps drawing near the feeder peak. Same timing and ramp as fdi.yaml. Ground truth: grid.
+attacks:
+  - type: fdi
+    target: H1
+    onset_s: 59400
+    duration_s: 7200
+    bias_pu: 0.04             # strength: final falsification (positive = masking)
+    ramp_pu_per_min: 0.004

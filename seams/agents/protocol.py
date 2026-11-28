@@ -1,3 +1,26 @@
+r"""Negotiation protocol (guideline, RQ4), one LangGraph run per renegotiation:
+
+  propose -> verify -> rank -> decide --agreement--> done
+                                     \--none, round 0--> revise -> verify -> rank -> decide -> done
+
+1. The master broadcasts the blame, C^deg and the grammar (Context); the default outcome is the
+   classical path's decision (its optimized contract, or theta_safe).
+2. Each agent submits up to k candidates (JSON, fixed schema); malformed ones are discarded.
+3. The verifier gate certifies each (V1, V2, exit-aware); rejected ones carry the counterexample.
+4. Agents accept and rank the certified candidates by their private objective; one revision round
+   with the counterexamples if no candidate is accepted by all.
+5. Agreement = a certified candidate every agent accepts (the best rank sum among them);
+   otherwise, or past the deadline, the default is installed.
+6. Everything is logged (the returned record).
+
+Agents in a stage run in parallel: a stage's latency is its slowest agent. The time to agreement
+is the sum over stages plus the verifier's time, compared with the deadline (one contract period).
+
+RQ5: a stalling (Byzantine) agent proposes nothing and accepts nothing, without an LLM call.
+Mitigation (optional, agents.stall_limit = n): an agent that accepted no certified candidate in n
+consecutive negotiations that had one is excluded from later negotiations (no proposals, no veto);
+safety is unaffected, since every candidate still passes the gate.
+"""
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypedDict
@@ -70,6 +93,7 @@ class Negotiation:
         return {r: a for r, a in self.agents.items() if r not in self.excluded}
 
     def _parallel(self, fn, stalled):
+        """fn per active agent, in parallel; a stalling agent answers `stalled` at once."""
         active = self.active
         live = [a for a in active.values() if not a.stalls]
         with ThreadPoolExecutor(max(1, len(live))) as ex:
@@ -194,6 +218,8 @@ class Negotiation:
         return (chosen["schedule"] if chosen else None), record
 
     def _count_stalls(self, st, record):
+        """Stall-limit mitigation: count consecutive negotiations, with a certified candidate on the
+        table, in which an agent accepted none; exclude it at the limit."""
         if not any(c["ok"] for c in st["candidates"]):
             return
         rk = st.get("rankings") or {}

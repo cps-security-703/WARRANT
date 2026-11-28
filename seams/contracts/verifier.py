@@ -1,3 +1,32 @@
+"""Z3 verifier. Linear real arithmetic over exact rationals: with outward-rounded inputs the
+verdict needs no separate exact re-check.
+
+V1 (compatibility): at every seam, no bounded trace satisfies the supplier's guarantee while
+    violating the consumer's assumption.
+      transport -> charging   sum_w lam <= lam_bar_w (G_T)        =>  sum_w lam <= lam_assumed_w (A_C)
+      charging  -> grid       P <= P_bar (G_C)                     =>  P <= P_assumed (A_G)
+      grid      -> charging   V_lo <= V_rep <= V_hi (G_G at k)     =>  assumed band (A_C at k+1)
+    The circular charging <-> grid pair is checked with the one-period shift of A_C (strict
+    causality), so the induction over periods is sound.
+
+V2 (refinement to Phi_safe) has two sides.
+
+  Undervoltage and loading (contract-dependent, online, Z3), anchored at the end of period n,
+  for leads k = 1..K:
+      V_h(t) >= Vbar_h(n) + sum_j Sq_hj (P_j(t) - Pbar_j(n)) - D_h(k) - eps_lin_h
+      0 <= P_j(t) <= P_bar_j                     (enforced at fine resolution by the PCC limiter)
+    query: exists h, k with V_h < v_min, or P_j > P_load_max_j  -> must be unsat.
+    Sq is the quasi-steady-state sensitivity the grid publishes each period. D_h(k) is the
+    one-sided empirical envelope of what the model misses over k periods (background drift,
+    taps, within-period ripple, i.e. eps_cpl); eps_lin is the one-sided linearization error over
+    the full power range. Regulators only raise voltage after a load increase, so one-sided
+    bounds in the undervoltage direction are tight. use_epsilon=False drops both (RQ3's
+    "without eps" variant).
+
+  Overvoltage (contract-independent): driven by load loss (P -> 0), which no contract parameter
+  controls, and bounded by the regulated feeder's voltage ceiling sampled over the whole
+  envelope: V_ceiling_h <= v_max.
+"""
 import time
 from dataclasses import dataclass
 from fractions import Fraction
@@ -6,6 +35,7 @@ import z3
 
 
 def Q(x):
+    """Exact Z3 rational from a Fraction (or int)."""
     x = Fraction(x)
     return z3.RealVal(f"{x.numerator}/{x.denominator}")
 
@@ -27,6 +57,7 @@ def _cex(model, variables):
 
 
 def v1_compatibility(theta, windows, horizon):
+    """Returns the first failing seam's Verdict, or an ok Verdict."""
     t0 = time.perf_counter()
     K = int(horizon)
     for h in sorted(theta.lam_bar):
@@ -61,6 +92,11 @@ def v1_compatibility(theta, windows, horizon):
 
 
 def v2_refinement(theta, anchor, eps, phi, horizon, use_epsilon=True, P_bar_k=None, extra=None):
+    """anchor: {'V': {h: pu}, 'P': {j: kW}, 'S': {h: {j: pu/kW}}} at the end of the current period;
+    h ranges over hubs (voltage), j over power parties (hubs and, if modeled, HOME).
+    eps: {'D': {h: {k: pu}}, 'lin': {h: pu}, 'P_load_max': {h: kW}} (Fractions).
+    P_bar_k: optional {(hub, k): kW} per-lead limits (time-windowed templates); default theta.P_bar.
+    extra: optional {hub: {k: pu}} added drift bound (grid distrust mode: an older anchor)."""
     t0 = time.perf_counter()
     hubs = sorted(anchor["V"])     # voltage-constrained parties
     parties = sorted(anchor["P"])  # power parties: the hubs, plus HOME (the home portfolio)

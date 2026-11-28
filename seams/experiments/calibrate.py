@@ -1,3 +1,14 @@
+"""Calibrate theta_static from nominal days on calibration seeds (disjoint from evaluation seeds).
+
+    python -m seams.experiments.calibrate seams/config/phase3.yaml [--workers 8]
+
+Calibration days: real background days at evenly spaced load-peak quantiles (incl. the heaviest).
+lam_bar_h = quantile of nominal per-period arrivals + margin
+beta_h,w  = quantile of |physics residual| over window w, times (1 + margin)
+P_bar_h   = the hub's honest allowance; V band = Phi_safe band
+P_bar_HOME = the honest home portfolio's largest calibration-day draw x (1 + home_p_margin)
+Writes contracts.theta_file, with the calibration evidence in `meta`.
+"""
 import argparse
 import math
 import os
@@ -22,6 +33,10 @@ def _nominal(job):
 
 
 def calibration_days(cfg, n):
+    """Real background days for the calibration runs: n days at evenly spaced quantiles of the
+    candidate days' load peak, always including the heaviest, so the empirical bounds (D, beta)
+    cover the whole envelope a seed can draw (random days can miss the hot tail, and then a
+    certificate's drift assumption breaks on an evaluation day). Synthetic shape: no override."""
     b = cfg["grid"]["background"]
     if b.get("source", "hourly") != "nrel_la" or b.get("day"):
         return [{} for _ in range(n)]
@@ -33,12 +48,16 @@ def calibration_days(cfg, n):
 
 
 def bg_levels(cfg):
+    """Background levels are configured as fractions of the run envelope's top (the heaviest
+    candidate day x peak_mult x noise headroom), so one setting covers every electrification
+    level. Returns a function: fractions -> absolute multipliers."""
     from seams.domains.grid.loadshape import envelope_top
     top = envelope_top(cfg["grid"]["background"])
     return lambda fracs: [round(float(f) * top, 4) for f in fracs]
 
 
 def epsilon_section(cfg, contract, fine, seeds, p_bar):
+    """p_bar: every power party's P_bar (hubs and, if modeled, HOME)."""
     from seams.contracts import epsilon as E
 
     e = cfg["contracts"]["epsilon"]
@@ -65,6 +84,8 @@ def epsilon_section(cfg, contract, fine, seeds, p_bar):
 
 
 def write_theta_safe(cfg, theta_static):
+    """theta_safe: the most conservative contract (P_bar = safe_frac of nominal, same quotas and
+    bands), certified offline over the whole background envelope."""
     from seams.contracts import epsilon as E
 
     r = cfg["renegotiation"]

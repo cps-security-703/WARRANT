@@ -1,3 +1,19 @@
+"""Home EV charging on the feeder, managed by the same aggregator cloud as the hubs.
+
+Real aggregators and OEM clouds also control residential chargers on the feeder; that portfolio
+is what makes a compromised aggregator a feeder-scale threat (load-altering attacks:
+Mohsenian-Rad & Leon-Garcia 2011; Soltan et al., USENIX Security 2018). It is part of the
+charging domain, not of the background load.
+
+Model (grid.home_ev): `chargers` home L2 chargers, each attached to one feeder load element
+with probability proportional to that element's nominal kW. Each charger sees
+Poisson(sessions_per_charger_day) weekday sessions drawn from real residential sessions
+(EV WATTS, Pacific, Single Family Residential): plug-in time, dwell, energy and the charger's
+own average power. Honest charging starts at plug-in at that power until the energy is
+delivered or the car leaves (the data's own timing already includes TOU-delayed starts).
+Aggregator modes (attacks only): hold (all sessions paused) and release (a share at the
+charger's max_kw, ignoring everything else).
+"""
 from dataclasses import dataclass
 
 import numpy as np
@@ -21,6 +37,7 @@ class HomeSession:
 
 class HomeCharging:
     def __init__(self, cfg, elements, rng):
+        """elements: {load element name: nominal kW} of the feeder's background loads."""
         h = cfg["grid"]["home_ev"]
         self.max_kw = float(h.get("max_kw", 7.2))
         self.dt_s = float(cfg["clock"]["fine_period_s"])
@@ -43,9 +60,15 @@ class HomeCharging:
         self.requested_kw = 0.0
 
     def set_mode(self, mode, fraction=1.0):
+        """honest | hold | release (compromised aggregator)."""
         self.mode, self.fraction = mode, float(fraction)
 
     def step(self, t_s, comply_kw=None, cap_kw=None):
+        """Power per load element for the fine period starting at t_s [kW]; advances energy.
+        comply_kw: the limit an honest aggregator keeps its own schedule to (its contracted
+        P_bar; a compromised one ignores it). cap_kw: the trusted demand-response cap, which
+        binds whatever the aggregator schedules. requested_kw is the aggregator's schedule
+        (after its own compliance, before the trusted cap), as P_req is for a hub."""
         kw = {n: 0.0 for n in self.elements}
         active = [s for s in self.sessions if s.arr_s <= t_s < s.dep_s and s.remaining() > 1e-6]
         released = set()

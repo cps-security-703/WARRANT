@@ -1,3 +1,13 @@
+"""ACN-Sim adapter: one charging network per hub, stepped one fine period at a time.
+
+Verified against acnportal 0.3.3:
+- Simulator.step() only advances while the event queue is non-empty, so it stalls between
+  dynamic arrivals. step() below mirrors one iteration of Simulator.run() instead
+  (events -> schedule -> pilots -> charge), in run()'s order.
+- network.update_constraint() changes a limit mid-run; that is the derating path.
+- An infeasible schedule is only warned about and still applied: ACN-Sim does not enforce
+  its constraints physically. The external PCC limiter is the real protection.
+"""
 import warnings
 
 import numpy as np
@@ -66,17 +76,21 @@ class AcnHub:
         return ev
 
     def set_scheduler(self, scheduler):
+        """Swap the scheduling algorithm mid-run (compromised aggregator and its recovery)."""
         scheduler.register_interface(Interface(self.sim))
         self.scheduler = scheduler
         self.sim.scheduler = scheduler
 
     def set_aggregate_limit(self, amps):
+        """Derating: rewrite this hub's aggregate current limit before the next step."""
         amps = float(min(self.nameplate_limit_a, max(0.0, amps)))
         if amps != self.limit_a:
             self.network.update_constraint(AGGREGATE, acnsim.Current(self.station_ids), amps)
             self.limit_a = amps
 
     def step(self, schedule_filters=()):
+        """Advance one fine period. Each filter (schedule -> schedule) acts on the physical path
+        between scheduler and chargers: the external PCC limiter, or an open breaker."""
         sim, k = self.sim, self.sim._iteration
         with warnings.catch_warnings():
             # stale UnplugEvents for sessions the bridge already released
@@ -102,9 +116,12 @@ class AcnHub:
         return schedule
 
     def open_breaker(self, schedule):
+        """Schedule filter for a tripped hub: nothing reaches the chargers, whatever the
+        scheduler asked for."""
         return {sid: [0.0] * len(rates) for sid, rates in schedule.items()}
 
     def power_kw(self):
+        """Hub power drawn in the last step."""
         return float(self.last_rates_a.sum() * self.voltage_v / 1000.0)
 
     def delivered_kwh(self, session_id):

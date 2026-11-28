@@ -1,3 +1,12 @@
+"""Gymnasium environments for SPEAR's two-layer attacker, retargeted to the seams.
+
+DQN layer (ArmEnv): one decision per episode, the discrete arm (target, onset slot, duration);
+its reward is the return of a whole episode played by the current (frozen) SAC policy. The
+grey-box attacker does not know the day, so its observation is constant: a bandit.
+SAC layer (AttackEnv): per decision step, the continuous strength (surface-specific, two dims),
+conditioned on the arm; arms are drawn from the DQN layer's current preferences (arm_probs file).
+Each env instance owns one seed's SnapshotWorker (seams.attacks.adaptive.episode).
+"""
 import json
 import os
 from itertools import product
@@ -84,6 +93,8 @@ class AttackEnv(gym.Env):
 
 
 class ArmEnv(gym.Env):
+    """One-step bandit over arms; the episode is played by the SAC policy saved at sac_path."""
+
     def __init__(self, rl, seed, run_root, sac_path):
         self.inner = AttackEnv(rl, seed, run_root)
         self.n = len(self.inner.arms)

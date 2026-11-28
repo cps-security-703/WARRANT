@@ -1,3 +1,9 @@
+"""SUMO adapter. Every TraCI call the testbed makes goes through this class, so a change in
+SUMO's API (battery parameter names, stop handling) stays local.
+
+Verified against SUMO 1.28: battery charge is `device.battery.chargeLevel` in Wh (get/set),
+capacity is `device.battery.capacity` in Wh.
+"""
 import itertools
 import os
 from pathlib import Path
@@ -95,6 +101,8 @@ class SumoAdapter:
         self.conn.vehicle.setParameter(vid, key, value)
 
     def add_trip(self, vid, from_edge, to_edge, type_id="ev"):
+        """Insert a vehicle now on the fastest route between two edges (an AV ride). Returns
+        False if there is no route."""
         edges = self.conn.simulation.findRoute(from_edge, to_edge, vType="ev").edges
         if not edges:
             return False
@@ -113,6 +121,7 @@ class SumoAdapter:
         return self.conn.vehicle.getSpeed(vid)
 
     def driving_distance(self, vid, edge, pos):
+        """Driving distance along the vehicle's route to (edge, pos); negative if unreachable."""
         return self.conn.vehicle.getDrivingDistance(vid, edge, pos)
 
     def destination(self, vid):
@@ -120,10 +129,13 @@ class SumoAdapter:
 
     # --- routing and hubs ---------------------------------------------------
     def edge_travel_time(self, from_edge, to_edge):
+        """Current-travel-time route cost, or None if unreachable."""
         route = self.conn.simulation.findRoute(from_edge, to_edge, vType="ev")
         return route.travelTime if route.edges else None
 
     def send_to_hub(self, vid, hub_id, hub_edge, destination):
+        """Reroute via the hub's edge to the original destination and add a parking stop.
+        Returns False if the vehicle cannot be rerouted right now (e.g. inside a junction)."""
         cur = self.road(vid)
         if cur.startswith(":"):
             return False
@@ -142,6 +154,7 @@ class SumoAdapter:
         return True
 
     def cancel_stop(self, vid):
+        """Remove the vehicle's next stop (a refused hub's parking stop)."""
         try:
             self.conn.vehicle.replaceStop(vid, 0, "")
         except self._exc:

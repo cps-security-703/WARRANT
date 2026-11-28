@@ -1,3 +1,4 @@
+"""Per-vehicle state machine on the transport side: drive -> seek hub -> (queue) -> parked -> drive."""
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -108,6 +109,8 @@ class Fleet:
                 v.events.append((t_s, f"seek:{hub}"))
 
     def _arrive(self, v, hub, arrivals, force=False):
+        """The single arrival path: count the attempt, then ask hub admission. A refused vehicle
+        drops its parking stop and re-enters hub selection with this hub excluded."""
         v.reached = True
         arrivals[hub] += 1
         if self.admission is None or self.admission.request(hub) or force:
@@ -121,6 +124,10 @@ class Fleet:
         return False
 
     def _queues(self, arrivals):
+        """A hub's queue is the contiguous chain of halted seeking vehicles that starts at the
+        parking entrance and continues back with at most queue_gap_m between vehicles.
+        Not queued: a seeking vehicle halted inside the parking span (manoeuvring into a free
+        space) or elsewhere on the road (e.g. yielding at a junction)."""
         halted = {h: [] for h in self.hubs}
         for vid in sorted(self.vehicles):
             v = self.vehicles[vid]
@@ -149,6 +156,8 @@ class Fleet:
         return queue, spill
 
     def step(self, t_s, views_fn, excluded=()):
+        """Run after SUMO advanced one fine period. views_fn(vid) -> {hub: HubView} is what that
+        vehicle's routing believes (per vehicle, so navigation spoofing can target a subset)."""
         self._handle_arrived(t_s)
         self._register_new(t_s)
         self._trigger_low_soc(t_s, views_fn, excluded)

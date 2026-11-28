@@ -1,3 +1,18 @@
+"""Attack surfaces for the adaptive attackers (RQ3): the scripted injection points with their
+strength set at every decision step instead of once.
+
+Each surface maps an action in [-1, 1]^2 to its strength parameters (SPEAR's SAC layer:
+magnitude and ramp/pattern) and exposes the grey-box observation the attacker has at its
+injection point; the discrete choices (target, onset, duration) are the DQN layer's.
+
+  fdi         a0 -> target bias in [-bias_max, +bias_max] pu, a1 -> ramp rate; the falsification
+              moves toward the target bias at that rate. Sees its meter: true and reported V.
+  aggregator  a0 -> share of connected EVs at the maximum rate, a1 > 0 -> hold every EV at zero
+              (load-altering build-up). Sees what its scheduler sees: connected EVs, requested
+              and scheduled power, and the aggregate limit it is given.
+  navigation  a0 -> share of the fleet whose routing inputs are spoofed, a1 -> queue shown at the
+              other hubs. Sees the published (public) availability and queues of every hub.
+"""
 import math
 
 import numpy as np
@@ -33,6 +48,7 @@ class AdaptiveFdi(FdiAttack):
 
 
 class AdaptiveAggregator:
+    """One compromised aggregator acting on one or several targets (hubs and/or HOME)."""
     origin = "charging"
 
     def __init__(self, targets, master):
@@ -49,6 +65,7 @@ class AdaptiveAggregator:
         self.hold = float(a[1]) > 0.0
 
     def step(self, t_s):
+        """Same contract as ScriptedAttack.step: called with the next fine period's start."""
         now = self.onset_s <= t_s < self.offset_s
         if now:
             phase = "hold" if self.hold else "release"
@@ -103,6 +120,8 @@ def time_features(t_s):
 
 
 def grey_obs(surface, attack, master, fine_rows):
+    """What the attacker sees at its injection point over the last decision step (fine records
+    of all hubs), normalized to O(1)."""
     hubs = list(master.hubs)
     if surface == "fdi":
         r = [x for x in fine_rows if x["hub"] == attack.target] or [{}]
@@ -137,6 +156,7 @@ def grey_obs(surface, attack, master, fine_rows):
 
 
 def white_obs(master, target):
+    """White-box extras (upper bound): the contract in force and the target's robustness."""
     th = master.theta
     out = []
     for h in master.hubs:

@@ -1,3 +1,11 @@
+"""Feeder FDI (grid origin): falsify the reported voltage V_rep at the target hub, ramping to
+bias_pu at ramp_pu_per_min. A negative bias makes derating curtail needlessly (availability
+attack); a positive bias hides a real undervoltage.
+
+two_meter: true (review experiment E7) also falsifies the feeder RTU's MV reading at the hub's bus
+by bias / b_h, with b_h the LV/MV slope of the grid's bad-data model, so the chi-square residual
+V_rep - (a + b V_mv_rep + c P) does not move: the coordinated, BDD-stealthy FDI of Liu et al.
+The PCC power meter stays trusted."""
 import json
 
 from seams.attacks.scripted.base import ScriptedAttack

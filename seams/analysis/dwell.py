@@ -1,3 +1,11 @@
+"""Dwell-budget sensitivity: RQ2 (contracts at c = 1.0 against protection only) at half the hub dwell.
+
+    python -m seams.analysis.dwell [--results seams/results] [--pdf]
+
+Input: <results>/dwell_summary.parquet (seams/experiments/campaigns/dwell.yaml, bridge.dwell_scale
+0.5) and the matching EDF rows of <results>/rq2_summary.parquet (dwell 1.0). Output:
+<results>/dwell_table.csv and <results>/figures/dwell_*.png.
+"""
 import argparse
 from pathlib import Path
 

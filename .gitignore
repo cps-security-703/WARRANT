@@ -20,3 +20,7 @@ adaptive_rl/acndata/
 .DS_Store
 .vscode/
 .idea/
+
+# Paper draft (double-blind review) and local backups
+seams/shields/WARRANT_Draft/
+*.bak_*

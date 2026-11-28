@@ -1,5 +1,15 @@
+"""Testbed and operating-point figures (appendix): the road network, the feeder, and what the grid
+and the hubs actually see on an attack-free day.
+
+    python -m seams.analysis.testbed [--results seams/results] [--runs ~/seams_runs] [--pdf]
+
+Inputs: the Pasadena SUMO network and IEEE 34 feeder (with the standard OpenDSS bus coordinates)
+under seams/scenarios, the kept fine logs
+(seed 2000) of the electrification campaign, and the session/home logs of the rq2 nominal runs
+(protection only and contracts at c = 1.0, seeds 2000-2009). Output: <results>/figures/testbed_*.png
+and <results>/testbed_energy.csv.
+"""
 import argparse
-import os
 import re
 import sys
 from pathlib import Path
@@ -36,7 +46,7 @@ def _fine(runs, cond, elec, seed=2000):
 
 
 def road_map(hubs, out, pdf):
-    sys.path.insert(0, str(Path(os.environ.get("SUMO_HOME", "~/sumo")).expanduser() / "tools"))
+    sys.path.insert(0, str(Path("~/sumo/tools").expanduser()))
     import sumolib
     net = sumolib.net.readNet(str(NET))
     fig, ax = new_figure(xlabel="x [km]", ylabel="y [km]")
@@ -53,6 +63,7 @@ def road_map(hubs, out, pdf):
 
 
 def _feeder_edges():
+    """(bus1, bus2, phases, kind) for every line, regulator and transformer of the feeder."""
     txt = FEEDER.read_text()
     bus = lambda b: b.split(".")[0].lower()
     edges = [(bus(a), bus(b), int(ph), "line") for ph, a, b in
@@ -64,6 +75,7 @@ def _feeder_edges():
 
 
 def feeder(hubs, out, pdf):
+    """IEEE 34 one-line diagram on the standard OpenDSS bus coordinates (IEEE34_BusXY.csv)."""
     xy = {r[0].lower(): (float(r[1]), float(r[2])) for r in
           (line.split(",") for line in FEEDER.with_name("IEEE34_BusXY.csv").read_text().split())}
     fig, ax = new_figure()
@@ -193,6 +205,8 @@ def operating_point(runs, out, pdf):
 
 
 def energy(runs, results, out, pdf):
+    """Delivered and unserved energy per hub and for homes, 10 attack-free days (IEEE 34, 2035); home
+    sessions still plugged at the horizon are left out, as in metrics.availability_cost."""
     rows = []
     for cond, tag in (("protection_only", "protection_only_EDF_nominal"), ("contracts", "contracts_c1.0_EDF_nominal")):
         for seed in range(2000, 2010):

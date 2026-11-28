@@ -1,3 +1,13 @@
+"""Attribution against blind tightening (RQ2): what blaming the right operator saves over degrading
+every operator's contract on any blame.
+
+    python -m seams.analysis.blind [--results seams/results] [--pdf]
+
+Input: <results>/blind_summary.parquet (seams/experiments/campaigns/blind.yaml,
+renegotiation.attribution blind) and the matching EDF rows of <results>/rq2_summary.parquet
+(contracts at c = 1.0, protection only). Output: <results>/blind_table.csv, <results>/blind_paired.csv
+and <results>/figures/blind_{unserved,delta}.png.
+"""
 import argparse
 from pathlib import Path
 
@@ -35,6 +45,7 @@ def table(a):
 
 
 def paired(a):
+    """Blind minus WARRANT on the same day, per scenario and strength."""
     p = a[a.condition.isin(["blind", "contracts"])].pivot_table(
         index=["scenario", "strength", "seed"], columns="condition", values="total_unserved_kWh").dropna()
     d = (p["blind"] - p["contracts"]).rename("delta")

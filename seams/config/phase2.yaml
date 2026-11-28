@@ -23,11 +23,12 @@ grid:
     offline_s: 1800
 
 ids:
-  # transformer = the session-level Transformer IDS (adaptive_rl/), retrained on this testbed by
-  # seams.experiments.train_ids. placeholder = a simple charging-side rule.
-  # transformer+bdd: the Transformer IDS on charging sessions and chi-square bad-data detection
+  # spear = SPEAR's Transformer IDS. model_path picks the bundle: the testbed-retrained one
+  # (default; seams.experiments.train_ids) or SPEAR's pre-trained one (does not transfer here:
+  # alarms on ~99 % of nominal windows). placeholder = a simple charging-side rule.
+  # spear+bdd: SPEAR's Transformer IDS on charging sessions and chi-square bad-data detection
   # on grid telemetry (baselines/bdd.py), side by side; detection only
-  kind: transformer+bdd
+  kind: spear+bdd
   # written by seams.experiments.calibrate at the reference Delta only: a fine-step detector, so
   # every condition (whatever its Delta) uses the same model
   bdd_file: seams/models/bdd_{feeder}_{elec}.json
@@ -35,12 +36,13 @@ ids:
   bdd_alpha: 1.0e-4           # chi^2 test level ...
   bdd_persist: 2              # ... held for this many consecutive steps
   bdd_margin: 1.2             # threshold >= margin x the largest held J on nominal calibration days
-  adaptive_rl_dir: adaptive_rl
+  spear_dir: SPEAR
   model_path: seams/models/ids_transformer_testbed.pkl
   retrained_path: seams/models/ids_transformer_testbed.pkl
+  pretrained_path: SPEAR/models/best_ids_model.pkl
   threshold: null             # null = the bundle's threshold
   rate_tol: 0.02              # placeholder only
-  training:                   # adaptive_rl recipe, calibration seeds only (last one held out)
+  training:                   # SPEAR's recipe, calibration seeds only (last one held out)
     seeds: [1000, 1001, 1002, 1003, 1004]
     n_samples: 8000
     attack_ratio: 0.5

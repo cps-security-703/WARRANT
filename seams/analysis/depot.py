@@ -1,3 +1,13 @@
+"""Cascades from every origin at the robotaxi depot (campaign depot: IEEE 123, 2035,
+scenario.hub_kind dcfc_depot): protection only, static contracts, blind tightening and WARRANT.
+
+    python -m seams.analysis.depot [--results seams/results] [--pdf]
+
+Input: <results>/depot_summary.parquet (1 kW robotaxi auxiliary load, the default) and, if present,
+depot_aux2kW_summary.parquet (2 kW sensitivity). Output: <name>_table.csv and <name>_paired.csv for
+each, and <results>/figures/depot_{crossing,dispatch_crossing,dispatch_depth,unserved,blind_delta}.png
+from the default campaign.
+"""
 import argparse
 from pathlib import Path
 
@@ -45,6 +55,7 @@ def _deltas(a):
 
 
 def paired(a):
+    """Blind minus WARRANT on the same day, per scenario and strength, with a Wilcoxon p-value."""
     from scipy.stats import wilcoxon
     rows = []
     for (s, st), d in _deltas(a).groupby(["scenario", "strength"]):

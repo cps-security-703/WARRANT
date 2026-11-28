@@ -1,0 +1,14 @@
+# Review R2b: safety-masking telemetry at the robotaxi depot (IEEE 123, 2035, dcfc_depot, 1 kW AV
+# aux load as in depot.yaml). Positive bias +0.02/+0.04 p.u. at H2; protection only vs WARRANT. No LLM.
+name: depot_mask
+out_dir: ~/seams_runs
+results_dir: seams/results
+seeds: [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009]
+keep_fine: [2000]
+conditions:
+  protection_only: {config: seams/config/phase2.yaml, set: {scenario.hub_kind: dcfc_depot, scenario.feeder: ieee123, scenario.electrification: "2035"}}
+  contracts: {config: seams/config/phase5.yaml, set: {scenario.hub_kind: dcfc_depot, scenario.feeder: ieee123, scenario.electrification: "2035"}}
+schedulers: [EDF]
+scenarios:
+  nominal: {attack: null}
+  fdi_mask: {attack: seams/config/attacks/fdi_mask_depot.yaml, param: attacks.0.bias_pu, values: [0.02, 0.04]}

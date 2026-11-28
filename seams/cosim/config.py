@@ -1,3 +1,4 @@
+"""Experiment config: one YAML file fully describes a run; overrides use dotted keys."""
 import copy
 from pathlib import Path
 
@@ -7,6 +8,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_config(path, overrides=None):
+    """Load a YAML config. A `base: other.yaml` key (relative to this file) is loaded first
+    and this file is deep-merged over it; lists replace rather than merge."""
     path = Path(path)
     if not path.is_absolute():
         path = PROJECT_ROOT / path
@@ -21,6 +24,17 @@ def load_config(path, overrides=None):
 
 
 def derive_timing(cfg):
+    """Contract timing is configured in seconds; derive the period counts for the configured
+    contract period Delta (idempotent, so it can run after any override):
+      contracts.windows_s          -> contracts.windows  (always includes the 1-period window)
+      verifier.horizon_s           -> verifier.horizon_periods
+      contracts.epsilon.drift_horizon_s -> contracts.epsilon.drift_horizon
+      renegotiation.exit_quiet_s   -> renegotiation.exit_quiet_periods
+      '{delta_s}' in theta file names -> the contract period in seconds
+      '{elec}', '{feeder}' in file names -> the electrification level, the feeder
+    and applies the scenario presets (scenario.feeder, scenario.electrification) to the grid; a
+    preset wins over the keys it sets, so change the preset, not those keys.
+    """
     apply_scenario(cfg)
     delta = float(cfg.get("clock", {}).get("contract_period_s", 0) or 0)
     if not delta:
@@ -59,6 +73,11 @@ def derive_timing(cfg):
 
 
 def apply_scenario(cfg):
+    """scenario.feeder names an entry of scenario.feeders: {file, voltage_bases, mv_kv,
+    households, hub_buses} -> grid.feeder / voltage_bases / mv_kv and each hub's bus.
+    scenario.electrification names a level of scenario.electrification_levels: {peak_mult,
+    home_share, peak_quantile_max (optional)} -> grid.background and grid.home_ev.chargers
+    (= home_share x the feeder's households)."""
     sc = cfg.get("scenario") or {}
     if "grid" not in cfg:
         return

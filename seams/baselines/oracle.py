@@ -1,3 +1,14 @@
+"""Centralized oracle (upper bound on availability; not deployable across independent operators).
+
+One controller sees all three domains' true state and dispatches charging and admission jointly:
+  - routing sees true hub availability (spoofed routing inputs never reach it)
+  - derating reads the true voltage (falsified telemetry never reaches it)
+  - every fine step, each hub's (and the home portfolio's) power limit is the largest that keeps every hub's *true* voltage
+    at or above v_min + margin under the quasi-steady-state sensitivity, capped at the
+    transformer's 100 % loading power; it is enforced on the physical path (a malicious scheduler
+    is clamped like any other)
+It has no verification horizon and no contract conservatism: only the next step must be safe.
+"""
 from seams.contracts.params import Theta
 from seams.cosim.config import resolve_path
 from seams.shields.pcc_limiter import PccLimiter
@@ -20,6 +31,7 @@ class Oracle:
         self.Sq = None
 
     def update(self, k, grid, state, p_now):
+        """After the grid solve of step k: limits for step k + 1 from the true state."""
         if self.Sq is None or k % self.every == 0:
             self.Sq = grid.sensitivity_qss(self.p_load_max)
         for h in self.limit:

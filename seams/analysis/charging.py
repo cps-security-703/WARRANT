@@ -1,3 +1,13 @@
+"""The charging operator's side of RQ1 (ACN-Sim): what derating and the certified cap do to hub power
+during telemetry FDI, and whether the results depend on the charging scheduler.
+
+    python -m seams.analysis.charging [--results seams/results] [--runs ~/seams_runs] [--pdf]
+
+Inputs: the kept fine logs (seed 2000) of the rq1 FDI runs at -0.04 p.u., the WARRANT run's contract log,
+and <results>/rq1_summary.parquet. Output: <results>/figures/traj_fdi_charging.png and
+<results>/rq1_scheduler.csv. With <results>/fdi_morning_summary.parquet, also <results>/fdi_morning_table.csv
+(the same FDI timed for the 08:30 peak, on both feeders).
+"""
 import argparse
 from pathlib import Path
 
@@ -12,6 +22,8 @@ ATTACK = (990, 1110)
 
 
 def trajectory(runs, out, pdf, seed=2000):
+    """H1 power and its two limits on the FDI day: the derating limit d_h, which the attacker drives
+    under protection only, and WARRANT's certified cap."""
     fig, ax = new_figure(xlabel="Time of day [h]", ylabel="H1 power [kW]")
     for cond, color, name in (("protection_only", "tab:gray", "Prot. only"), ("contracts", "tab:blue", "WARRANT")):
         d = runs / "rq1" / f"{cond}_EDF_fdi_x-0.04_s{seed}"
@@ -58,6 +70,8 @@ def scheduler_table(results):
 
 
 def morning_table(results):
+    """Per feeder and bias: crossing, attribution, blame time and unserved energy, and each condition's cost
+    over its own attack-free day (paired by seed)."""
     r = pd.read_parquet(results / "fdi_morning_summary.parquet")
     r = r.assign(strength=r.strength.fillna(0.0), crossed=r.tau_cross_s.notna().astype(float))
     base = r[r.strength == 0].set_index(["feeder", "condition", "seed"]).total_unserved_kWh

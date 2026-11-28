@@ -1,3 +1,4 @@
+"""Two clocks: fine period delta drives physics, contract period Delta drives monitoring."""
 from dataclasses import dataclass
 
 
@@ -37,12 +38,15 @@ class Clock:
         return int(horizon_s // self.fine_period_s)
 
     def seconds_to_fine(self, t_s):
+        """Fine period index containing simulation time t_s."""
         return int(t_s // self.fine_period_s)
 
     def duration_to_fine(self, d_s):
+        """Number of whole fine periods in a duration (rounded down, at least 1)."""
         return max(1, int(d_s // self.fine_period_s))
 
     def is_contract_boundary(self, k):
+        """True after fine step k closes a contract period."""
         return (k + 1) % self.fine_per_contract == 0
 
     def contract_index(self, k):

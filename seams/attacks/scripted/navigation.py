@@ -1,3 +1,6 @@
+"""Navigation manipulation (transport origin): for a fraction of vehicles, routing inputs are
+spoofed so the target hub looks empty and every other hub looks congested. The affected
+vehicles converge on the target: arrival surge -> queue spillback -> hub at its limit."""
 import dataclasses
 
 from seams.attacks.scripted.base import ScriptedAttack

@@ -1,3 +1,4 @@
+"""Run logger: one Parquet file per record type (fine, contract, session, events, trips, home) per run."""
 from pathlib import Path
 
 import pandas as pd

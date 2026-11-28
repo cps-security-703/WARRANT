@@ -1,3 +1,18 @@
+"""Phase 7 (RQ3): train SPEAR's two-layer attacker per surface, then evaluate the frozen policies
+on held-out seeds.
+
+    python -m seams.experiments.train_attackers seams/config/phase7.yaml \
+        --surface fdi --box grey --mode within [--set verifier.use_epsilon=false] [--tag noeps]
+
+Training alternates `rounds` times: SAC on episodes whose arms are drawn from the DQN layer's
+current preferences, then DQN with that SAC policy frozen. One env per training seed (a
+SnapshotWorker each). Output in ~/seams_runs/rq3/<name>/: sac.zip, dqn.zip, arm_probs.json,
+learning curves (sac_monitor.csv, dqn_monitor.csv), eval/ runs and eval.parquet.
+
+Evaluation: per held-out seed, the DQN's greedy arm played by the deterministic SAC policy,
+continued to the end of the day, next to its no-attack twin from the same snapshot; the
+campaign metrics (seams.experiments.campaign.run_metrics) on both.
+"""
 import argparse
 import json
 import os

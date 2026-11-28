@@ -1,3 +1,50 @@
+"""Renegotiation (V4), degraded contracts, the classical optimizer and the theta_safe fallback.
+Runs in the master at contract-period boundaries; the new theta takes effect atomically for the
+next period, and only once certified.
+
+Triggers: a blame (an incident), or the theta in force failing re-certification at the current
+operating point (e.g. the evening peak), so nothing is ever enforced uncertified.
+
+Degraded contracts C_j^deg, per blamed (domain, hub):
+  transport  charging assumes arrivals up to what admission lets through; hub admission is the
+             binding guarantee (no parameter change: the shield already enforces lam_bar)
+  grid       distrust mode: V_rep_h is no longer trusted; derating and V2 use an estimate V_est.
+             estimator "mv" (default): from the independent MV meter at the hub's bus and the
+             trusted PCC meter, V_est = a_h + b_h V_mv_rep_h + c_h P_h (the BDD's calibrated
+             model, error <= est_err_max_h on calibration days); V2 widens its bound by
+             est_err_max_h. Assumes the MV meter is not falsified together with V_rep (a
+             coordinated two-meter FDI is a separate, stronger attacker: RQ3).
+             estimator "anchor": from the PCC meter alone, V_est = V_anchor + sum_j Sq_hj
+             (P_j - P_anchor_j), anchored before the incident window, and V2 widens the drift
+             bound to D_h(elapsed + k) for the older anchor. A hub caught before keeps its last
+             clean anchor while the drift bound allows: readings between that anchor and a
+             re-entry may be falsified (re-anchoring inside an attack froze V_est at the
+             falsified level).
+             estimator "both": V_est and V2 as "anchor" (robust to a two-meter FDI, which
+             poisons the MV estimate), but distrust exits only once V_rep agrees with both
+             estimates, so neither the MV meter alone nor the anchor's load-dependent bound
+             alone can re-trust an active falsification.
+  charging   hub power assumed at the PCC limit; P_bar_h capped at charging_cap_frac of nominal
+Blind tightening (renegotiation.attribution: blind, the RQ2 baseline without attribution): an
+incident is detected but nobody is blamed, so every domain enters its degraded mode at every
+hub (charging also at HOME) for as long as any blame is raised.
+Exit: a mode ends after exit_quiet_periods without blame of that (domain, hub); distrust ends
+once V_rep has agreed with V_est within V_est's own uncertainty for as long: est_err_max_h for
+"mv" (constant in time), D(min(elapsed, K)) + eps_lin for "anchor" (K the V2 horizon), both
+tests for "both". A
+falsification smaller than that bound can be re-trusted while still active: residual attack
+surface, measured in RQ3. The anchor bound grows with feeder load (2045: 0.041 pu at H1, above
+a 0.04 pu FDI), the MV one does not.
+
+Optimizer: maximize the weighted sum of P_bar_h subject to the V2 corner constraints (worst
+case over the hub-power box, linear in P_bar) and caps/floors; exact rationals, Z3 Optimize.
+Its output is re-certified independently (V1, V2) and must keep theta_safe certifiable
+(exit-aware admission); otherwise, or if infeasible or over budget, theta_safe is installed.
+Weights (renegotiation.weights): {party: w}, or "laxity": w_j = 1 / (1 + median laxity [h]) of
+party j's real sessions (laxity = dwell - energy / charge rate, the time a session can wait and
+still finish), so a kW goes first where drivers can wait least; demand-response programs shed
+the most flexible load first.
+"""
 import json
 import time
 from dataclasses import dataclass, field
@@ -22,6 +69,8 @@ class Decision:
 
 
 def optimize_P_bar(theta, anchor, eps, phi, K, caps, floors, extra, weights):
+    """Largest weighted P_bar satisfying every V2 corner constraint. Returns ({hub: Fraction}, ms)
+    or (None, ms) if infeasible."""
     t0 = time.perf_counter()
     hubs = sorted(anchor["V"])     # voltage-constrained
     parties = sorted(anchor["P"])  # power parties (hubs, HOME)
@@ -54,6 +103,9 @@ def optimize_P_bar(theta, anchor, eps, phi, K, caps, floors, extra, weights):
 
 
 def laxity_weights(cfg):
+    """{party: 1 / (1 + median laxity in hours)} from the processed real sessions of each hub's
+    profile (and the home profile for HOME). Charge rate: the session's own average power where
+    the data has it, else the hub EVSE maximum."""
     import numpy as np
     import pandas as pd
     from seams.scenarios.build_scenario import PROCESSED
@@ -185,6 +237,8 @@ class Renegotiator:
         return {h for d, h in self.modes if d == "grid"}
 
     def v_est(self, h, P, V_mv=None):
+        """Trusted voltage estimate for a distrusted hub from PCC powers P (dict) and, for the
+        "mv" estimator, the MV meter's reported voltages V_mv (dict)."""
         if self.estimator == "mv":
             p = self.mv[h]
             return p["a"] + p["b"] * V_mv[h] + p["c"] * P[h]
@@ -192,6 +246,9 @@ class Renegotiator:
         return m["V0"] + sum(m["Sq"][j] * (P[j] - m["P0"][j]) for j in P)
 
     def v_est_err(self, h, kc):
+        """Uncertainty of v_est for the exit test: est_err_max ("mv"), or the drift since the
+        anchor capped at the V2 horizon plus linearization ("anchor"): an uncapped D(elapsed)
+        keeps growing until it exceeds a still-active falsification, which is then re-trusted."""
         if self.estimator == "mv":
             return float(self.mv[h]["est_err_max"])
         elapsed = min(kc - self.modes[("grid", h)]["anchor_k"], self.K)
@@ -199,6 +256,10 @@ class Renegotiator:
 
     # --- one boundary -------------------------------------------------------------
     def step(self, kc, sig, Sq, blames, history):
+        """The classical decision, then (Phase 8, agents.enabled) the operator agents: an agreed
+        plan stays in force while it re-certifies and no new incident starts; a negotiation runs on
+        a new degraded mode or on the classical path dropping into theta_safe, at most once per
+        cooldown. The classical decision is the default whenever agents do not agree."""
         self._ctx = None
         decision, events = self._classical(kc, sig, Sq, blames, history)
         if self.negotiator is not None:
@@ -257,6 +318,10 @@ class Renegotiator:
         return decision if out is None else out
 
     def _plan_decision(self, ctx, sched, decision, lead):
+        """The agreed plan's contract at this lead, or None when the classical decision stands.
+        lock (naive): the plan as agreed, while it re-certifies. floor: the plan raised to the
+        classical decision (per-party max), certified as a whole; the agents can only relax the
+        classical contract, never tighten it."""
         from seams.agents import gate
         t0 = time.perf_counter()
         tag = f"agreed-{self.plan['n']}-L{lead}"

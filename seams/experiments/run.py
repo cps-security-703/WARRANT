@@ -1,3 +1,8 @@
+"""Run one experiment.
+
+    python -m seams.experiments.run seams/config/phase2.yaml [--attack seams/config/attacks/fdi.yaml]
+        [--seed 42] [--set key=value ...] [--gui]
+"""
 import argparse
 import time
 

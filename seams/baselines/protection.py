@@ -1,3 +1,11 @@
+"""Baseline configurations. Each is a pure config transform applied before the run.
+
+- protection_only (primary): honest scheduler with infrastructure limits + voltage-aware
+  derating + transformer protection (trip at sustained overload) + IDS (detection only).
+- no_protection (lower bound only): Uncontrolled scheduler, no derating, no protection.
+  Shows the raw cascade; never the main comparison.
+- oracle (upper bound on availability): see baselines/oracle.py.
+"""
 import copy
 
 

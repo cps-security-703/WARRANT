@@ -1,3 +1,10 @@
+"""Recorded LLM responses, so a run replays without calling the API and stays deterministic.
+
+One SQLite file shared by every run of a campaign (WAL mode: parallel workers read and write
+safely). Key = SHA-256 of the full request (model, temperature, messages, schema); the record
+keeps the response text, the latency it took when it was recorded (so replayed runs report the
+same time to agreement), token counts and cost.
+"""
 import hashlib
 import json
 import sqlite3

@@ -1,3 +1,20 @@
+"""Review experiments (Nov 2026): tables and figures for E1-E3 and E5.
+
+    python -m seams.analysis.review [--results seams/results] [--pdf]
+
+E1 (detect_respond_summary): detect-and-respond baselines against protection only and WARRANT
+   (rq1_summary, EDF) on the same FDI days: crossed share, unserved energy, detection time.
+E2 (detect_respond_summary, scenario fdi_ramp; ramp 0.004 from rq1 / E1): time to detection and
+   to crossing against the FDI ramp rate -> figure fdi_ramp_race.
+E3 (disturbances_summary): accidental disturbances, protection only vs WARRANT.
+E7 (two_meter_summary): coordinated two-meter FDI against protection only, the E1 baseline and
+   WARRANT with the MV ("contracts") and PCC-only ("contracts_anchor") distrust estimators;
+   attack-free cost of the anchor estimator against WARRANT's default (rq1, EDF, same days).
+E5 (scaling.csv): certification time against the number of hubs -> figure scaling_time.
+R1/R2 (peak_shift_summary, fdi_mask_summary, depot_mask_summary): attack classes requested in review, load shifting
+   by release time and safety-masking (positive-bias) telemetry, protection only vs WARRANT.
+Each part runs only if its input exists. Tables are written as CSV next to the summaries.
+"""
 import argparse
 from pathlib import Path
 
@@ -19,6 +36,7 @@ def _prep(r):
 
 
 def _paired(a, b, col="total_unserved_kWh"):
+    """Mean b - a over seeds, days b better / worse, sign-test p."""
     m = a.set_index("seed")[col].to_frame("a").join(b.set_index("seed")[col].to_frame("b"), how="inner")
     d = m.b - m.a
     better, worse = int((d < -1e-6).sum()), int((d > 1e-6).sum())
@@ -134,6 +152,8 @@ def e7(results):
 
 
 def e7_screen(results):
+    """anchor_screen: the PCC-only estimator on both feeders at every load, against the MV estimator
+    (WARRANT's default) on the same days from electrification / feeder123."""
     a = _prep(pd.read_parquet(results / "anchor_screen_summary.parquet"))
     a["feeder"] = a.condition.str.replace("anchor_", "")
     m = pd.concat([_prep(pd.read_parquet(results / f"{c}_summary.parquet")).assign(feeder=f)
@@ -153,6 +173,8 @@ def e7_screen(results):
 
 
 def both(results):
+    """Experiment A (both_eval): the combined distrust estimator against the anchor screen (same
+    cells) and the MV estimator (electrification / feeder123; two_meter for IEEE 34 2035 fdi2)."""
     def load(name, prefix=None):
         r = _prep(pd.read_parquet(results / f"{name}_summary.parquet"))
         r["strength"] = r.strength.fillna(0.0)
@@ -179,6 +201,7 @@ def both(results):
 
 
 def cost_decomp(results):
+    """Experiment D: attack-free cost with V2's margins dropped in turn (tab:costdecomp)."""
     c = pd.read_parquet(results / "cost_decomp_summary.parquet")
     rows = []
     for (el, cond), g in c.groupby(["elec", "condition"]):
@@ -194,6 +217,8 @@ def cost_decomp(results):
 
 
 def horizon30(results):
+    """30 min vs 1 h V2 horizon (IEEE 34, EDF): horizon30 against the contracts runs of
+    electrification (1 h) and, for FDI -0.02 at 2035, of rq1; protection only for reference."""
     def load(name):
         r = _prep(pd.read_parquet(results / f"{name}_summary.parquet"))
         r["strength"] = r.strength.fillna(0.0)
@@ -219,6 +244,43 @@ def horizon30(results):
                      "viol_steps_30": g.phi_safe_violation_steps.sum()})
     t = pd.DataFrame(rows)
     t.to_csv(results / "review_horizon30.csv", index=False)
+    return t
+
+
+def attack_classes(results):
+    """R1 (peak_shift) and R2 (fdi_mask): per load, attack and condition: crossings, grid
+    failures (Phi_safe), first blame, unserved energy over the attack-free twin; WARRANT - PO paired."""
+    rows = []
+    for name in ("peak_shift", "fdi_mask", "depot_mask"):
+        f = results / f"{name}_summary.parquet"
+        if not f.exists():
+            continue
+        r = _prep(pd.read_parquet(f))
+        r["strength"] = r.strength.fillna(0.0)
+        if "elec" not in r:  # depot_mask: IEEE 123 at 2035 only
+            r["elec"] = "2035"
+        for (el, scen, st), g in r.groupby(["elec", "scenario", "strength"]):
+            po, w = (g[g.condition == c] for c in ("protection_only", "contracts"))
+            nom = {c: r[(r.elec == el) & (r.scenario == "nominal") & (r.condition == c)] for c in ("protection_only", "contracts")}
+            d_w = _paired(po, w)
+            row = {"campaign": name, "elec": el, "scenario": scen, "strength": st, "days": len(w),
+                   "crossed_po": int(po.crossed.sum()), "crossed_w": int(w.crossed.sum()),
+                   "grid_fail_po": int((po.fail_grid == True).sum()), "grid_fail_w": int((w.fail_grid == True).sum()),
+                   "viol_steps_po": po.phi_safe_violation_steps.sum(), "viol_steps_w": w.phi_safe_violation_steps.sum(),
+                   "tau_cross_po_min": po.tau_cross_s.median() / 60,
+                   "blamed_w": int((w.first_blame == w.origin).sum()) if scen != "nominal" else 0,
+                   "blame_any_w": int((w.first_blame.fillna("") != "").sum()),
+                   "tau_blame_w_min": w.tau_blame_s.median() / 60,
+                   "E_po": po.total_unserved_kWh.mean(), "E_w": w.total_unserved_kWh.mean(),
+                   "dE_po_vs_nom": _paired(nom["protection_only"], po)[0],
+                   "dE_w_vs_nom": _paired(nom["contracts"], w)[0],
+                   "w_minus_po": d_w[0], "w_better": d_w[1], "w_worse": d_w[2], "p": d_w[3],
+                   "fallback_w": w.periods_fallback.mean(), "unsound_w": w.unsound_periods.sum(),
+                   "oos_w": w.out_of_scope_violations.sum()}
+            rows.append(row)
+    t = pd.DataFrame(rows)
+    if len(t):
+        t.to_csv(results / "review_attack_classes.csv", index=False)
     return t
 
 
@@ -264,6 +326,8 @@ def main(argv=None):
             print("D (cost)\n", cost_decomp(results).round(3).to_string(index=False))
         if (results / "horizon30_summary.parquet").exists():
             print("Horizon 30 min\n", horizon30(results).round(2).to_string(index=False))
+        if (results / "peak_shift_summary.parquet").exists() or (results / "fdi_mask_summary.parquet").exists():
+            print("R1/R2 attack classes\n", attack_classes(results).round(2).to_string(index=False))
         if (results / "scaling.csv").exists():
             med, _ = e5(results, out, pdf)
             print("E5\n", med.round(0).to_string())

@@ -31,7 +31,7 @@ agents:
       price_out_per_mtok: 0.50
   # record: replay a recorded response, call the API otherwise; replay: cache only (a miss fails)
   mode: record
-  cache: ~/seams_runs/llm_cache.sqlite   # outside the repository (SQLite WAL and cloud sync do not mix)
+  cache: ~/seams_runs/llm_cache.sqlite   # outside Dropbox (SQLite WAL and sync do not mix)
   max_candidates: 2           # k proposals per agent per round
   revise_rounds: 1            # one revision with the counterexamples
   deadline_s: 120             # one contract period

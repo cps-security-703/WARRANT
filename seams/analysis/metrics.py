@@ -1,3 +1,15 @@
+"""Run-level metrics from the Parquet logs.
+
+Domain failure (thresholds pre-registered in config `metrics`, set from nominal runs):
+  transport  spillback beyond spillback_fail_m at any hub
+  charging   a hub offline, or forced curtailment: d_h below (1 - curtail_frac) of its full
+             allowance for at least curtail_min_s
+  grid       any Phi_safe violation on the true state (voltage band or transformer loading)
+
+Cascade depth = |{origin domains} U {domains failing after onset}|.
+tau_cross = onset -> first failure in a domain other than the origin(s) (protection-only runs).
+Multi-fault runs have several origins; onset is the earliest attack onset.
+"""
 from pathlib import Path
 
 import numpy as np
@@ -15,11 +27,13 @@ def load_run(run_dir):
 
 
 def _sustained(flag, n):
+    """True where flag has held for at least n consecutive steps (ending at that step)."""
     run = flag.groupby((~flag).cumsum()).cumsum()
     return run >= n
 
 
 def domain_failures(fine, cfg):
+    """Per fine step (index t_fine): bool per domain, failing at any hub."""
     m = cfg["metrics"]
     fine_s = float(cfg["clock"]["fine_period_s"])
     p_full = {h["id"]: float(h["p_allow_kw"]) for h in cfg["hubs"]}
@@ -34,6 +48,7 @@ def domain_failures(fine, cfg):
 
 
 def attack_window(events):
+    """(origins, onset_k, targets) over all attacks in the run, or None for a nominal run."""
     on = events[events.event.str.startswith("attack_onset")]
     if on.empty:
         return None
@@ -71,6 +86,9 @@ def cascade(run_dir):
 
 
 def availability_cost(run_dir):
+    """Unserved energy at the hubs, and of the home portfolio (sessions that end within the run;
+    one still plugged at the horizon has not been denied anything yet). total_unserved_kWh is the
+    availability cost: curtailing home charging instead of a hub is not free."""
     frames, _ = load_run(run_dir)
     s = frames["session"]
     out = {
@@ -86,6 +104,13 @@ def availability_cost(run_dir):
 
 
 def attribution(run_dir):
+    """Contract-monitor detection and attribution (Phase 3 onward).
+
+    tau_detect_s      onset -> end of the first contract period with any rho < 0
+    first_blame       domains blamed in the first incident starting at or after onset
+    attribution_ok    first_blame is non-empty and contained in the true origin(s) (strict)
+    false_incidents   incidents in a nominal run, or before onset in an attack run
+    """
     frames, cfg = load_run(run_dir)
     c, events = frames["contract"], frames["events"]
     if "theta" not in c.columns:
@@ -119,6 +144,7 @@ def attribution(run_dir):
 
 
 def _safe_scope(cfg):
+    """theta_safe's certified background scope (None without renegotiation or a scope)."""
     from seams.cosim.config import resolve_path
     path = (cfg.get("renegotiation") or {}).get("theta_safe_file")
     if not path or not resolve_path(path).exists():
@@ -128,6 +154,16 @@ def _safe_scope(cfg):
 
 
 def certification(run_dir):
+    """Verifier outcomes and their empirical soundness (Phase 4 onward).
+
+    certified_share     share of contract boundaries where theta was certified (V1 and V2)
+    unsound_periods     certified boundaries followed, within the V2 horizon, by a fine-step
+                        Phi_safe violation on the true state (must be 0)
+    out_of_scope_violations  fine steps violating Phi_safe while the background exceeded
+                        theta_safe's certified scope: there the feeder breaks Phi_safe even at the
+                        most conservative contract (high electrification), so no certificate
+                        covers it; reported separately, never counted as sound
+    """
     frames, cfg = load_run(run_dir)
     c, f = frames["contract"], frames["fine"]
     if "certified" not in c.columns:
@@ -158,6 +194,12 @@ def certification(run_dir):
 
 
 def renegotiation(run_dir):
+    """Renegotiation outcomes (Phase 5 onward): status counts and tau_reneg.
+
+    tau_reneg_s  first blame at or after onset -> the boundary where a new theta (or a degraded
+                 mode) takes effect. Renegotiation runs at that same boundary, so in simulated
+                 time it is the wait for the next boundary (0 here); solve_ms is the compute.
+    """
     frames, cfg = load_run(run_dir)
     c, ev = frames["contract"], frames["events"]
     if "status" not in c.columns:
@@ -179,6 +221,9 @@ def renegotiation(run_dir):
 
 
 def containment(run_dir, baseline_dir):
+    """Containment window for one attacked run, against the protection-only run of the same
+    seed and scenario: margin = tau_cross(baseline) - (tau_detect + tau_reneg). Positive means
+    the contract took effect before the uncontained cascade would have crossed."""
     a, r, base = attribution(run_dir), renegotiation(run_dir), cascade(baseline_dir)
     t = a.get("tau_detect_s", np.nan) + r.get("tau_reneg_s", 0.0)
     return {

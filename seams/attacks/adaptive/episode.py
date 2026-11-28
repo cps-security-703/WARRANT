@@ -1,3 +1,27 @@
+"""Attack episodes on snapshots of a real co-simulation day.
+
+An episode starts at the attacker's chosen onset, so the hours before it would dominate the cost
+of every episode. With SUMO in-process (sumo.libsumo) the whole co-simulation is one process,
+and os.fork() snapshots it exactly (a forked copy continues bit-identically, checked in
+seams/tests/test_adaptive.py):
+
+  worker (one seed)  pre-rolls the day once, forking a *template* at every onset slot
+  template           idles; per episode it forks a child and waits for it
+  episode child      inherits the template's pipe to the worker, installs the attack, steps
+                     the co-simulation on the worker's commands, then exits
+
+Each template first runs a no-attack counterfactual of the longest window + tail. Damage is
+measured against it, period by period, on the same day and the same random streams.
+
+Decision step: one contract period (within-contract attacker) or one fine step (inter-sample).
+Within-contract reward: availability damage vs the counterfactual,
+    energy not delivered [kWh] + w_delay x queueing [veh h] + w_refused x refused vehicles,
+and a terminal penalty if the contract layer blames anyone (the attribution rule fires).
+Inter-sample reward: Phi_safe margin consumed on the true fine-step state vs the counterfactual,
+plus a bonus per fine step in violation; terminal penalty if a coarse robustness rho < 0 appears
+at a contract boundary where the counterfactual had none.
+After the window the attack stops and a no-action tail runs (recovery and late detection count).
+"""
 import os
 from multiprocessing import Pipe
 
@@ -16,6 +40,7 @@ def _since(m, cur, table):
 
 
 def period_stats(m, cur, phi):
+    """Availability and safety quantities of the fine steps since cursor `cur`."""
     fine = _since(m, cur, "fine")
     dt_h = m.clock.fine_period_s / 3600.0
     hubs = list(m.hubs)
@@ -44,6 +69,8 @@ def period_stats(m, cur, phi):
 
 
 class Episode:
+    """Runs inside the forked episode child."""
+
     def __init__(self, m, rl, arm, cf):
         self.m, self.rl, self.arm, self.cf = m, rl, arm, cf
         self.mode = rl["mode"]
@@ -77,6 +104,7 @@ class Episode:
         return st
 
     def _score(self, st, i0, n_fine):
+        """Reward of the fine steps [i0, i0 + n_fine) of the episode against the counterfactual."""
         r = self.rl["reward"]
         cf = self.cf
         sl = slice(i0, i0 + n_fine)
@@ -131,6 +159,7 @@ class Episode:
 
 
 def counterfactual(m, rl, max_fine):
+    """No-attack continuation of the template: per fine step E, Q, R, margin; rho<0 per period."""
     phi = dict(m.phi, v_scale=rl["reward"]["v_scale_pu"], loading_scale=rl["reward"]["loading_scale"])
     out = dict(E=[], Q=[], R=[], margin=[], rho_neg={})
     for _ in range(max_fine):
@@ -147,6 +176,7 @@ def counterfactual(m, rl, max_fine):
 
 
 def _template_loop(m, conn, rl, max_fine):
+    """Idle copy of the co-simulation at one onset slot: forks the counterfactual and episodes."""
     while True:
         msg = conn.recv()
         if msg[0] == "quit":
@@ -198,6 +228,8 @@ def _finish_day(m, run_dir):
 
 
 class SnapshotWorker:
+    """One seed's day, pre-rolled once, with a template at every onset slot."""
+
     def __init__(self, rl, seed, run_root):
         from seams.cosim.master import Master
         self.rl = rl
@@ -228,11 +260,13 @@ class SnapshotWorker:
         return self.cf[slot]
 
     def _abort(self):
+        """End an unfinished episode: its child, not the template, reads the template's pipe."""
         if self.conn is not None:
             self.conn.send(("abort",))
             self.conn = None
 
     def reset(self, arm):
+        """arm: {'target', 'onset_s', 'duration_s'}. Returns the first observation."""
         self._abort()
         cf = self.counterfactual_for(arm["onset_s"])
         _, self.conn = self.templates[arm["onset_s"]]
@@ -247,12 +281,14 @@ class SnapshotWorker:
         return out
 
     def write(self, run_dir):
+        """After a done step with rl['continue_to_end']: finish the day into run_dir."""
         self.conn.send(("write", str(run_dir)))
         out = self.conn.recv()
         self.conn = None
         return out
 
     def nominal(self, slot, run_dir):
+        """The no-attack twin of an evaluation run: the rest of the day from the same template."""
         _, conn = self.templates[slot]
         conn.send(("nominal", str(run_dir)))
         return conn.recv()

@@ -1,0 +1,8 @@
+# Review R1 (load shifting by time of day): the compromised multi-site aggregator of aggregator.yaml
+# (hold every connected EV at zero for 2 h, then release all at the maximum rate for 1 h, ignoring
+# derating), with the release moved to 13:00 (midday, off-peak). Timing fixed a priori; only onset differs. Ground truth: charging.
+attacks:
+  - {type: aggregator, target: H1, onset_s: 39600, duration_s: 10800, hold_s: 7200, fraction: 1.0}
+  - {type: aggregator, target: H2, onset_s: 39600, duration_s: 10800, hold_s: 7200, fraction: 1.0}
+  - {type: aggregator, target: H3, onset_s: 39600, duration_s: 10800, hold_s: 7200, fraction: 1.0}
+  - {type: aggregator, target: HOME, onset_s: 39600, duration_s: 10800, hold_s: 7200, fraction: 1.0}

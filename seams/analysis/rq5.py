@@ -1,3 +1,23 @@
+"""RQ5 (Phase 9): the Byzantine negotiator against honest negotiation.
+
+    python -m seams.analysis.rq5 [--runs ~/seams_runs/rq5] [--results seams/results] [--pdf]
+
+Input: the rq5 campaign (seams/experiments/campaigns/rq5.yaml): <results>/rq5_summary.parquet and
+per run contract.parquet, trips.parquet, negotiations.jsonl. Every Byzantine run has an honest
+twin (condition "honest", same scenario and seed). Output: <results>/rq5_table.csv and
+<results>/figures/rq5_*.png.
+
+Per Byzantine run, against its honest twin:
+  loss per honest operator   charging: hub unserved energy [kWh]; fleet: extra trip time [veh h]
+                             plus refused and stranded vehicles; utility: lost Phi_safe voltage
+                             margin [mpu]; residents: HOME unserved energy [kWh]. The compromised
+                             operator's own row is reported but is not a loss to an honest operator
+  no agreement               share of triggered negotiations that end without agreement (the
+                             classical contract or theta_safe is installed)
+  theta deviation            mean over periods and parties of |P_bar - P_bar of the honest twin| [kW]
+  gate                       Phi_safe violation steps (in scope), unsound periods, out-of-scope
+                             violations: all must be 0
+"""
 import argparse
 import json
 from pathlib import Path
@@ -19,6 +39,7 @@ PARTIES = ("H1", "H2", "H3", "HOME")
 
 
 def split(condition):
+    """'stall_limit_fleet' -> ('stall_limit', 'fleet')."""
     strategy, _, role = condition.rpartition("_")
     return strategy, role
 

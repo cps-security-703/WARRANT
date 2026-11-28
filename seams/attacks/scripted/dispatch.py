@@ -1,3 +1,10 @@
+"""Compromised AV-fleet dispatcher (transport origin). From the onset a share `fraction` of the
+AV fleet (domains/transport/av.py) is compromised. Drain phase (onset to converge_s, optional):
+the members get back-to-back long rides and no dispatcher-sent charging, so they run down. From
+converge_s they are sent to charge, each AV once, with routing inputs spoofed like the
+navigation attack's (target hub empty, the others congested), so they converge on the target:
+arrival surge -> queue -> the hub held at its limit. The ground-truth attack window is the
+whole compromise, drain included."""
 import dataclasses
 
 from seams.attacks.scripted.base import ScriptedAttack

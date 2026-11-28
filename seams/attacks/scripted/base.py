@@ -1,3 +1,7 @@
+"""Scripted attack base: an injection point, a strength, an onset and a duration, and the
+ground-truth origin domain used to score attribution."""
+
+
 class ScriptedAttack:
     origin = None  # "transport" | "charging" | "grid"
 
@@ -13,6 +17,7 @@ class ScriptedAttack:
         return self.onset_s <= t_s < self.offset_s
 
     def step(self, t_s):
+        """Called once per fine step with the start time of the *next* fine period."""
         now = self.is_active(t_s)
         if now and not self.active:
             self.start(t_s)

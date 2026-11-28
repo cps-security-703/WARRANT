@@ -1,3 +1,8 @@
+"""Contract parameters theta: one frozen version per contract, stored as exact rationals.
+
+Float inputs are converted by rounding *outward*, in the direction that makes the contract more
+conservative, so the exact check (Z3, Phase 4) is sound against floating-point error.
+"""
 import math
 from dataclasses import dataclass, field
 from fractions import Fraction
@@ -10,6 +15,8 @@ DENOM = 10 ** 6
 
 
 def outward(x, conservative="down"):
+    """Rational approximation of x rounded toward the conservative side ('down' or 'up').
+    Accepts floats, ints, Fractions and 'n/d' strings."""
     scaled = Fraction(x) * DENOM
     n = math.floor(scaled) if conservative == "down" else math.ceil(scaled)
     return Fraction(n, DENOM)
@@ -63,6 +70,7 @@ class Theta:
         )
 
     def to_dict(self):
+        """Exact round trip: rationals are written as 'n/d' strings."""
         fr = lambda x: f"{x.numerator}/{x.denominator}"
         out = {
             "version": self.version,
@@ -86,6 +94,7 @@ class Theta:
         return out
 
     def replace(self, version, **changes):
+        """A new contract version with some parameters changed (renegotiation, sweeps)."""
         import dataclasses
         return dataclasses.replace(self, version=version, **changes)
 
@@ -96,6 +105,8 @@ class Theta:
 
     @classmethod
     def permissive(cls, hubs, windows, parties=None):
+        """Calibration mode: nothing can be violated; residuals and margins are still logged.
+        parties: the power parties (hubs, plus HOME if modeled); default the hubs."""
         big = 10 ** 6
         return cls.from_dict({
             "version": "calibration", "lam_bar": {h: {w: big for w in windows} for h in hubs},
@@ -104,6 +115,7 @@ class Theta:
         })
 
     def floats(self):
+        """Float view for online monitoring (exact rationals stay for the verifier)."""
         return {
             "lam_bar": {h: {w: float(v) for w, v in ws.items()} for h, ws in self.lam_bar.items()},
             "P_bar": {h: float(v) for h, v in self.P_bar.items()},
@@ -115,6 +127,8 @@ class Theta:
 
 
 def load_theta(cfg):
+    """theta_static from the config's contracts.theta_file, or a permissive theta (calibration
+    mode) when the file does not exist yet or calibration mode is forced."""
     c = cfg["contracts"]
     hubs = [h["id"] for h in cfg["hubs"]]
     parties = hubs + (["HOME"] if cfg.get("grid", {}).get("home_ev", {}).get("enabled") else [])
@@ -127,6 +141,9 @@ def load_theta(cfg):
 
 
 def scaled(theta, c):
+    """RQ2's conservatism knob: P_bar and lam_bar (guarantee and assumption side) times c.
+    c < 1 is tighter, c > 1 looser; the verifier still has the last word (a P_bar above what V2
+    can certify is renegotiated down, so 'loose' saturates at what the grid allows)."""
     c = Fraction(str(c))
     lam = {h: {w: outward(v * c, "down") for w, v in ws.items()} for h, ws in theta.lam_bar.items()}
     P = {h: outward(v * c, "down") for h, v in theta.P_bar.items()}

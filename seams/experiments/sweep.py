@@ -1,3 +1,12 @@
+"""Strength x seed sweeps, parallel across runs (never within one: OpenDSS is one engine per
+process).
+
+    python -m seams.experiments.sweep seams/config/phase2.yaml --attack seams/config/attacks/fdi.yaml \
+        --param attacks.0.bias_pu=-0.005,-0.01,-0.02,-0.04 --seeds 42,43 --name fdi_bias --workers 8
+
+Each run lands in runs/<name>/<run_id>; summary.parquet holds one row per run with its
+parameters, cascade metrics and availability cost.
+"""
 import argparse
 import itertools
 import os

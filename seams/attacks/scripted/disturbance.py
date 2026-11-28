@@ -1,3 +1,15 @@
+"""Accidental grid disturbances (review experiment E3): honest events, no attacker. They test
+whether attribution blames the grid for a real change it did not hide, and what that costs. The
+ground-truth origin is the grid (its equipment or meter), so the metrics score them like a grid
+fault; whether a blame is "false" is a matter of interpretation, discussed with the results.
+
+  capacitor_trip  a feeder capacitor bank (spec target: its OpenDSS name, e.g. C848) is switched
+                  out for duration_s: a real voltage drop the published model does not explain.
+  load_step       a constant-power load of kw kW (pf 0.95) switches on at an MV bus for
+                  duration_s: a large customer the background profile does not contain.
+  meter_stuck     the hub's LV voltage meter freezes at its last reading for duration_s
+                  (sensor failure): the reported value stops following the true voltage.
+"""
 import opendssdirect as dss
 
 from seams.attacks.scripted.base import ScriptedAttack

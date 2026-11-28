@@ -1,3 +1,22 @@
+"""End to end: raw data -> calibrated contracts -> every campaign -> every table and figure.
+
+    python -m seams.experiments.pipeline [--stages all] [--workers 9] [--force] [--no-pdf] [--dry-run]
+
+Stages, in order (each one is resumable; a stage whose outputs exist is skipped unless --force):
+  tests        the full test suite (about 30 min)
+  data         seams.data.prepare: raw public datasets -> seams/data/processed
+  calibrate    theta_static, theta_safe and the BDD for every feeder x electrification x Delta used
+  ids          the retrained Transformer IDS (seams/models/ids_transformer_testbed.pkl)
+  campaigns    RQ1, RQ2, Delta, electrification, IEEE 123, dwell sensitivity, blind tightening (no LLM)
+  rq3          the 23 trained attackers (SPEAR two-layer RL), in dependency order
+  agents       RQ4, RQ4 conservatism, RQ5 (LLM; OPENROUTER_API_KEY in .env; calls already in the
+               replay cache ~/seams_runs/llm_cache.sqlite cost nothing)
+  figures      seams.analysis.make_figures: every table and figure, PNG and PDF
+
+Campaigns reuse every finished run (metrics.json), so re-running a completed stage only rebuilds
+its summary. Run data goes to ~/seams_runs, summaries and figures to seams/results.
+From scratch on 10 cores this takes several days (rq3 alone took ~2.5 days); LLM spend was ~$40.
+"""
 import argparse
 import os
 import subprocess
@@ -18,7 +37,8 @@ CALIBRATIONS = [("ieee34", e, 120) for e in ("today", "2035", "2045")] + \
                [("ieee123", "2035", 120, "dcfc_depot")]  # fast-charging hubs + robotaxi depot at H2
 
 CAMPAIGNS = ("rq1", "rq2", "delta", "electrification", "feeder123", "dwell", "blind", "fdi_morning",
-             "detect_respond", "disturbances", "two_meter", "anchor_screen", "both_dev", "both_eval", "cost_decomp", "horizon30", "depot", "depot_aux2kW")
+             "detect_respond", "disturbances", "two_meter", "anchor_screen", "both_dev", "both_eval", "cost_decomp", "horizon30", "depot", "depot_aux2kW",
+             "peak_shift", "fdi_mask", "depot_mask")
 AGENT_CAMPAIGNS = ("rq4", "rq4_conservatism", "rq5")
 
 # RQ3 attackers: (train_attackers arguments, output name). Order matters: --resume-from needs its source

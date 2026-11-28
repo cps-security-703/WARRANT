@@ -1,3 +1,26 @@
+"""RQ4 (Phase 8): operator agents against the classical optimizer alone, on the foreseen scripted
+faults and the held-out unforeseen set.
+
+    python -m seams.analysis.rq4 [--runs ~/seams_runs/rq4] [--results seams/results] [--pdf]
+
+Input: the rq4 campaign (seams/experiments/campaigns/rq4.yaml): <results>/rq4_summary.parquet and
+per run negotiations.jsonl and contract.parquet. Every agent run has a classical twin (same
+scenario, strength and seed). Output: <results>/rq4_table.csv (per condition and scenario),
+<results>/rq4_negotiations.csv (one row per negotiation) and <results>/figures/rq4_*.png.
+
+  time to agreement   latency of the negotiation (sum of the stage maxima + verification) against
+                      the deadline of one contract period
+  certified share     certified candidates / candidates proposed (malformed ones count as proposed)
+  agreement rate      agreed / triggered negotiations (skipped ones count as not agreed)
+  containment window  for the scripted scenarios that cross a domain boundary in the protection-only
+                      run (RQ2's tau_cross, same seed and strength): margin = tau_cross minus the time
+                      from onset to the first agreed contract in force (first blame, plus the wait to
+                      the agreeing negotiation, plus its latency rounded up to whole contract periods:
+                      the simulator installs an agreement at the boundary it was triggered on, a real
+                      deployment one period later); the classical contract is in force at first blame
+  plan lock-in        P_bar of the agreed plan minus the classical twin's P_bar in the same period,
+                      by lead within the plan (the classical path re-optimises every period)
+"""
 import argparse
 import json
 import re
@@ -47,6 +70,7 @@ def negotiations(runs, foreseen):
 
 
 def paired(summary):
+    """Agent runs joined with their classical twins."""
     c = summary[summary.condition == "classical"].set_index(KEY)
     out = []
     for cond in AGENTS:
@@ -64,6 +88,7 @@ def paired(summary):
 
 
 def lock_in(runs, cond):
+    """(lead within the agreed plan, mean P_bar over hubs: plan minus classical twin, twin in fallback)."""
     rows = []
     prefix = f"{cond}_EDF_"
     cols = ["k", "hub", "status"] + [f"Pbar_{h}" for h in HUBS]
@@ -84,6 +109,7 @@ def lock_in(runs, cond):
 
 
 def containment(summary, runs, rq2_summary, period_s):
+    """Per agent run of a crossing scenario: classical margin and agreement margin (see module doc)."""
     po = rq2_summary[rq2_summary.condition == "protection_only"].set_index(["scenario", "strength", "seed"]).tau_cross_s
     rows = []
     for _, r in summary.iterrows():
@@ -119,6 +145,7 @@ def table(summary, pairs, negs):
 
 
 def _legend(ax, n):
+    """Legend in a band above the data (two columns when there are more than three entries)."""
     lo, hi = ax.get_ylim()
     rows = -(-n // (2 if n > 3 else 1))
     ax.set_ylim(lo, hi + (hi - lo) * 0.13 * rows)

@@ -1,3 +1,21 @@
+"""Experiment campaigns (Phase 6+): one YAML spec -> every run, resumable, one metrics row each.
+
+    python -m seams.experiments.campaign seams/experiments/campaigns/rq1.yaml [--workers 10] [--dry-run]
+
+Spec:
+  name, out_dir (run data; outside Dropbox), results_dir (summary parquet; in the project)
+  seeds:       evaluation seeds
+  conditions:  {name: {config, set: {dotted: value}, scenarios: [names] (optional: only these)}}
+  axes:        [{name, key, values}]   cartesian, applied to every condition except those listed
+               in the axis' `skip`
+  schedulers:  [EDF, LLF, RR]           (evse.scheduler)
+  scenarios:   {name: {attack: file | null, param, values, set: {dotted: value}}}   null attack = nominal day
+  keep_fine:   seeds whose fine.parquet is kept (example trajectories); others drop it
+
+Each run writes metrics.json (cascade, attribution, renegotiation, certification, availability,
+transport costs). A pairing pass then adds trip delay against the nominal run of the same
+condition, axes, scheduler and seed, and writes <results_dir>/<name>_summary.parquet.
+"""
 import argparse
 import itertools
 import json
@@ -67,7 +85,7 @@ def run_metrics(run_dir):
 
 
 class RunFailed(RuntimeError):
-    pass
+    """A run that raised; picklable (some library exceptions are not, and break the pool)."""
 
 
 def _run(job):
@@ -98,6 +116,7 @@ def _execute(job, run_dir, done):
 
 
 def trip_delay(df, out_root):
+    """Per attacked run: extra trip time of vehicles that arrived in both it and its nominal twin."""
     keys = [c for c in df.columns if c not in ("scenario", "strength") and c in df.attrs.get("key_cols", [])]
     nominal = df[df.scenario == "nominal"].set_index(keys)
     delays = []

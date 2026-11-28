@@ -1,3 +1,8 @@
+"""SUMO -> ACN-Sim bridge: a parked SUMO vehicle becomes an ACN-Sim session, and is handed
+back when charging ends (fully served, or dwell budget reached).
+
+Units: SUMO battery values are Wh, ACN-Sim energies are kWh, both clocks are fine periods.
+"""
 from dataclasses import dataclass
 
 
@@ -42,6 +47,10 @@ class Bridge:
         return len(self.hubs[hub].station_ids) - len(self.occupancy[hub])
 
     def plug_in(self, vid, hub_id, k, charge_wh, capacity_wh, trip_type, dwell_s=None, request_kwh=None):
+        """Create the ACN-Sim session for a vehicle that occupied a hub space during fine
+        period k. Charging starts at period k + 1: the vehicle was not there for all of k.
+        dwell_s / request_kwh: the vehicle's own session (sampled from real session data);
+        otherwise the trip type's defaults."""
         hub = self.hubs[hub_id]
         free = [s for s in hub.station_ids if s not in self.occupancy[hub_id]]
         if not free:
@@ -73,6 +82,7 @@ class Bridge:
         return session
 
     def due_releases(self):
+        """Sessions to release after the ACN-Sim step that just ran (iteration already advanced)."""
         tol = self.cfg["bridge"]["release_tol_kwh"]
         due = []
         for vid in sorted(self.active):

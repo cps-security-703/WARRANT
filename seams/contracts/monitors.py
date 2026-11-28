@@ -1,3 +1,32 @@
+"""Online seam monitors (discrete time, one tick = one contract period Delta), robustness and
+the attribution rule.
+
+Every formula is `always(linear inequality)`, so the per-period robustness rho_k is the signed
+margin of the inequality and the running robustness of `always` is the min over periods so far.
+Both are logged; attribution uses rho_k. (rtamt is not needed for this fragment.)
+
+Formulas per hub h, period k (w ranges over the configured windows, in periods):
+  G_T_arr_w      lam_bar_h,w - sum of lam_h over the last w periods  transport guarantee
+  A_C_arrivals   min over w of the same                              charging assumption (from transport)
+  G_C_power      min(P_bar_h - P_req_h, d_h - P_req_h)               charging guarantee
+  A_C_voltage    band margin of V_rep_h at k-1                       charging assumption (from grid)
+  A_G_power      P_bar_j - P_j for every power party j (hubs, HOME)   grid assumption (from charging)
+  (HOME, the aggregator's home portfolio, has one row: G_C_power = P_bar_HOME - P_req_HOME)
+  G_G_band       min(V_rep_h - V_lo, V_hi - V_rep_h)                 grid guarantee
+  G_G_phys_w     beta_h,w + gamma_h sum_j |dP_j| - |dV_rep_h - sum_j S_hj dP_j - sum_r T_hr dtap_r|
+                 over w periods (gamma: the published model's large-signal error per kW moved)
+                                                                     grid guarantee (physics consistency)
+
+Causality of the circular charging <-> grid pair: grid physics responds to hub power within the
+same period, so grid guarantees at k are conditioned on A_G at k; charging responds to grid
+outputs one step later (derating is applied at the next fine step), so its voltage assumption is
+taken at k-1. Transport has no assumption (A_T = true).
+
+Attribution rule: blame domain i at (k, h) if rho(A_i) >= 0 and rho(G_i) < 0. A violated
+assumption is the supplier's violated guarantee, so it is attributed through the supplier's own
+(A, G) check; it only *excuses* i. First blame wins per incident (a contiguous run of periods
+with any blame); every blame is logged.
+"""
 from collections import deque
 
 import numpy as np
@@ -29,11 +58,14 @@ class SeamMonitor:
         self.published = (S, T)
 
     def set_theta(self, theta):
+        """Monitor against the contract in force (switched atomically at a period boundary)."""
         self.th = theta.floats()
         self.theta_version = theta.version
 
     # --- robustness ------------------------------------------------------------
     def _physics(self, h, w):
+        """Residual of dV over the last w periods against the published linear model, and the
+        window's total power movement sum_j |dP_j| (for the large-signal term)."""
         if len(self.hist) <= w:
             return np.nan, 0.0
         seq = list(self.hist)[-(w + 1):]
@@ -49,6 +81,7 @@ class SeamMonitor:
         return dv - pred, moved
 
     def update(self, sig):
+        """Feed one period's signals. Returns (rho rows per hub, blames [(domain, hub)], residuals)."""
         S, T = self.published if self.published else (None, None)
         self.hist.append((sig, S, T))
         th, tol = self.th, self.tol  # tol = {"kw": ..., "pu": ...}

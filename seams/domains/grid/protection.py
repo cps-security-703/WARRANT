@@ -1,3 +1,21 @@
+"""Hub transformer thermal protection: an overload ends with the hub breaker open for offline_s.
+This is the honest "cascade" a protection-only system has.
+
+grid.protection.model:
+  threshold  loading above trip_loading_pct for trip_after_s trips (synthetic; Phases 0-6)
+  c57_91     IEEE C57.91 (Clause 7) top-oil / hot-spot exponential model; trips when the
+             winding hot-spot exceeds trip_hotspot_c. Ambient is the day's real temperature when
+             the background load comes from NREL data, else ambient_c.
+
+C57.91 model, per fine step dt with per-unit load K:
+  ultimate top-oil rise   dTO_u = dTO_R * ((K^2 R + 1) / (R + 1))^n
+  ultimate hot-spot rise  dH_u  = dH_R * K^(2m)
+  dTO += (dTO_u - dTO) * (1 - exp(-dt / tau_TO));  dH += (dH_u - dH) * (1 - exp(-dt / tau_w))
+  hot spot = ambient + dTO + dH
+Defaults are typical of a small ONAN 65 C-rise pad-mount unit (C57.91 tables): dTO_R 55 C,
+dH_R 25 C (80 C hot-spot rise at rated), R 4, n = m = 0.8, tau_TO 2 h, tau_w 5 min; trip at
+140 C, the guide's long-time emergency hot-spot limit.
+"""
 import math
 
 
@@ -44,6 +62,7 @@ class TransformerProtection:
         return self.hotspot[hub]
 
     def update(self, k, loading, ambient_c=None):
+        """After the grid solve of fine step k. Returns hubs that tripped now."""
         tripped = []
         if not self.enabled:
             return tripped

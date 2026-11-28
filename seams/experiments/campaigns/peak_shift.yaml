@@ -1,0 +1,19 @@
+# Review R1: does the time of a load-shifting attack matter? The aggregator attack (hold 2 h, then
+# release every connected EV at full rate) released at 13:00, 18:30 (the default, near the feeder
+# peak) and 21:00, on IEEE 34 at 2035 and 2045. The 18:30 cells repeat electrification's runs.
+name: peak_shift
+out_dir: ~/seams_runs
+results_dir: seams/results
+seeds: [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009]
+keep_fine: [2000]
+conditions:
+  protection_only: {config: seams/config/phase2.yaml}
+  contracts: {config: seams/config/phase5.yaml}
+axes:
+  - {name: elec, key: scenario.electrification, values: ["2035", "2045"]}
+schedulers: [EDF]
+scenarios:
+  nominal: {attack: null}
+  agg_1300: {attack: seams/config/attacks/aggregator_release1300.yaml, param: attacks.*.fraction, values: [1.0]}
+  agg_1830: {attack: seams/config/attacks/aggregator.yaml, param: attacks.*.fraction, values: [1.0]}
+  agg_2100: {attack: seams/config/attacks/aggregator_release2100.yaml, param: attacks.*.fraction, values: [1.0]}

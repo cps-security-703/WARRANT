@@ -1,3 +1,23 @@
+"""Structural contract templates. A proposal may change a contract's *shape*, not only its
+numbers, but only through these templates, each with a Z3 encoding over the per-lead schedules
+the verifier checks (k = 1..K periods ahead):
+
+  Pb[h][k]   hub power limit P_bar at lead k
+  Lb[h][k]   per-period arrival quota lam_bar_1 at lead k
+  Xd[h]      extra voltage-drift bound (grid distrust mode)
+
+  TimeWindowedCap      a tighter P_bar or lam_bar for a stated window of leads
+  HubExclusion         hub removed from routing for a window (lam_bar = 0)
+  CurtailmentWindow    P_bar reduced on a per-lead schedule
+  GridDistrust         voltage derived from PCC power and S instead of V_rep, eps widened
+  ValidityWindow       the contract is certified for its first `leads` periods only and expires
+                       after them (renegotiated before then); it shortens the verification
+                       horizon, not the schedule, so it has no schedule variables to encode
+
+`realize` computes the schedule directly; `encode` states it as Z3 constraints. The round trip
+(encode -> solve -> decode == realize) is the gate that every template's encoding is faithful.
+Proposals arrive as JSON (Phase 8 agents); malformed ones are rejected by `from_json`.
+"""
 from dataclasses import asdict, dataclass
 from fractions import Fraction
 
@@ -7,6 +27,7 @@ from seams.contracts.verifier import Q
 
 
 def dec(x):
+    """A proposed number as the decimal it was written as (0.02 -> 1/50), not its binary float."""
     return x if isinstance(x, Fraction) else Fraction(str(x))
 
 
@@ -48,6 +69,8 @@ TEMPLATES = {c.__name__: c for c in (TimeWindowedCap, HubExclusion, CurtailmentW
 
 
 class Schedule:
+    """Per-lead parameter schedule, starting from a base theta."""
+
     def __init__(self, theta, K):
         self.K = K
         self.hubs = sorted(theta.P_bar)  # power parties: the hubs, and HOME if modeled
@@ -74,6 +97,7 @@ def _leads(t, K):
 
 
 def realize(templates, theta, K):
+    """Apply templates in order to a base schedule; caps only ever tighten (min)."""
     s = Schedule(theta, K)
     for t in templates:
         if isinstance(t, TimeWindowedCap):
@@ -98,6 +122,9 @@ def realize(templates, theta, K):
 
 
 def encode(templates, theta, K):
+    """Z3 variables for the schedule and constraints that pin them to the templates' meaning.
+    Each schedule entry equals the min over the base and every template touching it, encoded
+    as (<= each bound) and (== one of them)."""
     hubs, lam_hubs = sorted(theta.P_bar), sorted(theta.lam_bar)
     Pb = {h: {k: z3.Real(f"Pb_{h}_{k}") for k in range(1, K + 1)} for h in hubs}
     Lb = {h: {k: z3.Real(f"Lb_{h}_{k}") for k in range(1, K + 1)} for h in lam_hubs}
@@ -156,6 +183,8 @@ def to_json(t):
 
 
 def from_json(d, hubs, K, lam_hubs=None, min_leads=1):
+    """Strict parse of one proposed template; raises ValueError on anything malformed. hubs: the
+    power parties (P_bar caps, distrust); lam_hubs: those with an arrival quota (default hubs)."""
     if not isinstance(d, dict) or d.get("template") not in TEMPLATES:
         raise ValueError(f"unknown template: {d!r}")
     cls = TEMPLATES[d["template"]]

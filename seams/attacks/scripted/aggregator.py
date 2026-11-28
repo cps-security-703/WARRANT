@@ -1,3 +1,14 @@
+"""Compromised aggregator (charging origin): the target hub's scheduler is replaced by the
+malicious one for the attack window, then the honest scheduler is restored.
+
+hold_s > 0 makes it a load-altering attack of the demand-manipulation class (Soltan et al.,
+"BlackIoT", USENIX Security 2018; Mohsenian-Rad & Leon-Garcia 2011): for the first hold_s of the
+window every connected EV is held at zero, so pending demand builds up, then the share
+`fraction` is released at the maximum rate at once. A multi-site aggregator is one spec per hub
+with the same timing, plus target HOME for its home chargers on the feeder
+(seams/config/attacks/aggregator.yaml). With real session energy the
+plain max-rate attack (hold_s = 0) barely adds load: an honest scheduler is rarely power-limited.
+"""
 from seams.attacks.scripted.base import ScriptedAttack
 from seams.domains.charging.acn_env import make_scheduler
 from seams.domains.charging.malicious_scheduler import MaliciousScheduler

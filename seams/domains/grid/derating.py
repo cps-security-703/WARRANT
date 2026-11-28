@@ -1,3 +1,11 @@
+"""Grid-side voltage-aware derating: d_h from the *reported* hub voltage.
+
+Full allowance at or above v_knee, linear ramp down to p_min at v_lo, p_min below. Because it
+reads reported values, a falsely low V_rep curtails needlessly and a falsely high one hides a
+real undervoltage.
+"""
+
+
 class DeratingController:
     def __init__(self, cfg):
         d = cfg["grid"]["derating"]

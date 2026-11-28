@@ -1,3 +1,16 @@
+"""Review experiment E5: how certification scales with the number of hubs (solver only, no
+co-simulation). Times the classical path of one renegotiation: the optimizer (Eq. opt), V1 on its
+candidate, V2 on the candidate, and the exit-awareness check (V2 on theta_safe).
+
+Instances are synthetic, built from the calibrated IEEE 34 / 2035 / 120 s contract: every hub
+copies H1's quotas, caps, drift and linearization bounds; sensitivities are drawn around the
+logged IEEE 34 values (own -1.9e-4 to -2.5e-4 pu/kW; cross -0.4e-4 to -0.7e-4, scaled by 3/n so a
+feeder with n hubs keeps the 3-hub coupling per hub); anchors at 0.99-1.03 pu and 0-30 kW.
+
+    python -m seams.experiments.scaling [--hubs 3 5 10 20 50 100] [--reps 5] [--results seams/results]
+
+Output: <results>/scaling.csv (one row per instance).
+"""
 import argparse
 import random
 import time

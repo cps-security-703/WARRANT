@@ -1,3 +1,21 @@
+"""Co-simulation master: one Python loop, two clocks.
+
+Per fine period delta (steps not yet built are marked with their phase):
+  1. transport   advance SUMO; low-SOC triggers, hub occupancy, queues, spillback
+  2. bridge in   new occupancies -> ACN-Sim plug-in events
+  3. derating    apply the latest d_h to each hub's aggregate limit
+  4. charging    step ACN-Sim one period
+  5. shields     PCC limiter / hub admission                       (Phase 4)
+                 (a tripped hub's open breaker acts on the same physical path)
+  6. grid        PCC meter -> hub loads; power flow; true state, reported telemetry, next d_h;
+                 transformer protection; IDS observes charging-side signals (detection only)
+  7. bridge out  release finished sessions, write SOC back to SUMO
+  8. attacks     scripted attackers act on their injection point for the next step
+  9. log
+Every contract period Delta: aggregate contract signals, publish a_h to routing, log.
+
+The grid is optional: a config without a `grid` section (Phase 0) runs at fixed hub limits.
+"""
 from pathlib import Path
 
 import numpy as np
@@ -129,6 +147,8 @@ class Master:
 
     # --- interfaces ---------------------------------------------------------
     def hub_views(self, vid=None):
+        """What a vehicle's routing believes about each hub: the published a_h, after any
+        attack hooks (vid=None is the unattacked view)."""
         views = {
             h: HubView(availability=self.published[h]["a"], queue=self.published[h]["queue"],
                        n_evse=len(hub.station_ids))
@@ -140,6 +160,7 @@ class Master:
         return views
 
     def apply_theta(self, theta):
+        """Switch the contract in force: shields, monitors and the honest charging limit."""
         self.theta = theta
         for h, lim in self.limiters.items():
             lim.set_limit(theta.P_bar[h])
@@ -149,6 +170,7 @@ class Master:
             self.monitor.set_theta(theta)
 
     def _log_negotiation(self, t_s, rec):
+        """One row per negotiation (RQ4 metrics) and the full transcript in negotiations.jsonl."""
         import json
         u = self.reneg.llm.usage
         row = {k: rec[k] for k in ("kc", "trigger", "default_status", "agreement", "timeout", "chosen", "chosen_source",
@@ -176,6 +198,8 @@ class Master:
         return self.run_dir
 
     def start(self):
+        """Start SUMO; the loop then runs in advance() calls (run(), or an adaptive attacker's
+        environment that steps the co-simulation period by period)."""
         self.sumo.start()
         self.fleet = Fleet(self.cfg, self.sumo, self.admission)
         self.av_fleet = None
@@ -342,6 +366,8 @@ class Master:
             self._period.append(rec)
 
     def contract_step(self, k):
+        """Aggregate the period's fine records into contract signals, run the monitors and the
+        attribution rule, have the grid publish S and T, and publish a_h to routing."""
         kc = self.clock.contract_index(k)
         mon = {}
         if self.monitor:

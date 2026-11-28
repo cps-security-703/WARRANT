@@ -1,0 +1,11 @@
+# Review R2b (safety attack at the robotaxi depot): fdi_mask.yaml aimed at H2, the 1.3 MW depot site
+# (scenario.hub_kind: dcfc_depot), the only hub large enough to move the feeder. Positive bias hides
+# a real undervoltage from derating over 16:30-18:30, which covers the 17:30 robotaxi arrival peak.
+# Target and timing fixed a priori. Ground truth: grid.
+attacks:
+  - type: fdi
+    target: H2
+    onset_s: 59400
+    duration_s: 7200
+    bias_pu: 0.04             # strength: final falsification (positive = masking)
+    ramp_pu_per_min: 0.004

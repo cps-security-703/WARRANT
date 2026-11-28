@@ -1,3 +1,22 @@
+"""One LLM agent per operator (fleet, charging, utility), each with a private view and objective.
+
+An agent sees only its own domain's signals (from the period history the master keeps) and the
+broadcast: the blame, the degraded contract C^deg, the grammar, and the verifier's verdicts and
+counterexamples on its own proposals. It never sees another domain's model or state. Its private
+objective is scored by a deterministic tool on the agent's own data; the LLM decides what to
+propose and what to accept, the numbers it reasons over come from the tool.
+
+  fleet     vehicles turned away: sum over leads and hubs of max(0, forecast arrivals - quota)
+            proposes: arrival quotas (TimeWindowedCap lam_bar), HubExclusion
+  charging  unserved energy [kWh]: sum over leads and parties of max(0, forecast demand - P_bar) x Delta
+            proposes: power caps (TimeWindowedCap P_bar), CurtailmentWindow
+  utility   lost voltage margin [mpu]: v_min-margin of the worst lead/hub under the schedule
+            (its own linear model: anchor, sensitivities, drift bounds) below the nominal margin
+            proposes: GridDistrust, CurtailmentWindow (grid-requested curtailment)
+
+Forecasts are persistence over the recent periods (fleet: mean arrivals over the last
+forecast_periods; charging: the last period's request), the agents' own business.
+"""
 import json
 from fractions import Fraction
 
@@ -86,11 +105,13 @@ RANK_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["ra
 
 
 def clean_template(t):
+    """Flat schema object -> grammar JSON (drop the null fields)."""
     return {k: v for k, v in t.items() if v is not None}
 
 
 class OperatorAgent:
     def __init__(self, role, llm, cfg, byzantine=None):
+        """byzantine: None (honest) or {"strategy": one of BYZANTINE, "misreport_scale": x}."""
         if role not in ROLES:
             raise ValueError(role)
         self.role, self.llm = role, llm
@@ -106,6 +127,8 @@ class OperatorAgent:
 
     # --- private view and objective ----------------------------------------------
     def view(self, ctx, history):
+        """The agent's own domain state (numbers it is allowed to see); a misreporting agent's
+        view is its false type (forecasts and sensitivities scaled), which every later step uses."""
         v = self._view(ctx, history)
         if self.strategy != "misreport":
             return v
@@ -135,6 +158,8 @@ class OperatorAgent:
                 "sensitivity_pu_per_100kw": {h: {j: 100 * float(s) for j, s in row.items()} for h, row in ctx.anchor["S"].items()}}
 
     def _margin(self, ctx, P, valid=None):
+        """Worst certified voltage margin over hubs and leads, given per-lead caps P[j][k] (the
+        utility's own linear model, the one V2 uses)."""
         worst = None
         for h in ctx.anchor["V"]:
             for k in range(1, min(ctx.K, valid or ctx.K) + 1):

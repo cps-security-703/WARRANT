@@ -1,4 +1,4 @@
-# Phase 7 — adaptive attackers (RQ3): two-layer attacker: DQN (discrete: target, onset, duration) + SAC
+# Phase 7 — adaptive attackers (RQ3): SPEAR's DQN (discrete: target, onset, duration) + SAC
 # (continuous: strength per decision step), retargeted from the IDS penalty to the contract
 # layer. Read by seams.experiments.train_attackers; the co-simulation is `config` (the RQ1
 # scenario: IEEE 34, 2035, contracts + renegotiation) with SUMO in-process for snapshots.

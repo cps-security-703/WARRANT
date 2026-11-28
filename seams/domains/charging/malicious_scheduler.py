@@ -1,3 +1,10 @@
+"""Compromised aggregator: requests the maximum rate on a fraction of connected EVSEs and
+ignores derating and infrastructure limits.
+
+It runs inside the charging domain, so ACN-Sim's own constraint check is compromised with it
+(ACN-Sim only warns on an infeasible schedule and applies it anyway). Only the external PCC
+limiter, outside the domain's software, stands between it and the feeder.
+"""
 import math
 
 from acnportal.algorithms import BaseAlgorithm

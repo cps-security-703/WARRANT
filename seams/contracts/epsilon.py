@@ -1,13 +1,37 @@
+"""Epsilon terms that link the coarse contract view to the fine physical run.
+
+eps_lin[h]       largest gap between the full AC solve (regulators acting) and the verifier's
+                 anchored quasi-steady-state model V0 + Sq (P - P0), over the operating envelope
+                 (background level x anchor point x hub powers in [0, P_bar]), by sampling.
+P_load_max[j]    hub power at which the hub transformer reaches 100 % loading, at the worst
+                 (heaviest) background, other hubs at P_bar. Loading is then a linear bound.
+D[h][k]          drift envelope: everything the anchored model misses k periods ahead on
+                 nominal days (background drift, tap moves, within-period ripple), one-sided in
+                 the undervoltage direction:
+                 max(Vbar(n) + sum_j Sq_hj(n) (P_fine_j(t) - Pbar_j(n)) - V_fine(t)), t in period n+k.
+V_ceiling[h]     regulated-feeder voltage ceiling over the whole envelope (overvoltage side).
+cpl_V[h]         within-period ripple: |V_fine(t) - Vbar(period of t)|, reported for the
+                 soundness lemma (it is contained in D).
+
+All are empirical bounds: the soundness lemma uses them as assumptions and RQ3's inter-sample
+attacker tests them.
+"""
 import numpy as np
 
 
 def _p_bar(cfg, p_bar):
+    """Power range per party: the hubs' honest allowance, plus HOME's if given."""
     out = {h["id"]: float(h["p_allow_kw"]) for h in cfg["hubs"]}
     out.update({j: float(v) for j, v in (p_bar or {}).items()})
     return out
 
 
 def linearization(cfg, rng, bg_levels, n_anchor, n_samples, p_bar=None):
+    """One-sided error of the verifier's anchored model V0 + Sq (P - P0), in the dangerous
+    (undervoltage) direction: max(pred - actual). From each anchor (regulators settled), jump to
+    a random hub-power vector and let the regulators re-settle from the anchor's taps, as they
+    would within one fine step. Regulators only raise voltage after a load increase, so the
+    error in this direction stays small; the overvoltage side is covered by voltage_ceiling()."""
     from seams.domains.grid.dss_env import GridAdapter
 
     grid = GridAdapter(cfg)
@@ -37,6 +61,12 @@ def linearization(cfg, rng, bg_levels, n_anchor, n_samples, p_bar=None):
 
 
 def step_gamma(cfg, rng, bg_levels, n_anchor, n_samples, p_bar=None, dp_kw=2.0):
+    """gamma[h]: the monitor's physics model (small-signal S, T published at the anchor) on a
+    large power step, |dV - S dP - T dtap| per kW of total |dP|, worst case over random steps
+    from settled anchors with the regulators acting. The grid's physics guarantee is
+    beta_h,w + gamma_h * sum |dP| over the window: a linear model's large-signal error is part
+    of what the grid publishes, so a big (legitimate or not) power step on the charging side
+    does not look like a grid-side inconsistency."""
     from seams.domains.grid.dss_env import GridAdapter
 
     grid = GridAdapter(cfg)
@@ -70,6 +100,8 @@ def step_gamma(cfg, rng, bg_levels, n_anchor, n_samples, p_bar=None, dp_kw=2.0):
 
 
 def _set_all(grid, p):
+    """Set every party's power (HOME spread by its portfolio shares) and record it as the
+    operating point the sensitivity probes restore."""
     for j, kw in p.items():
         grid.set_party_power(j, kw)
     if grid.home:
@@ -77,6 +109,11 @@ def _set_all(grid, p):
 
 
 def voltage_ceiling(cfg, rng, bg_levels, n_anchor, n_samples, p_bar=None):
+    """Highest hub voltage the regulated feeder reaches anywhere in the operating envelope:
+    background in bg_levels, hub powers in [0, P_bar] including the all-hubs-at-zero corner,
+    regulators re-settling from settled anchor taps. Overvoltage is driven by load loss, which no
+    contract parameter controls (P's lower bound is always 0), so this bound is a property of
+    the feeder, checked once."""
     from seams.domains.grid.dss_env import GridAdapter
 
     grid = GridAdapter(cfg)
@@ -103,6 +140,8 @@ def voltage_ceiling(cfg, rng, bg_levels, n_anchor, n_samples, p_bar=None):
 
 
 def load_limit(cfg, bg_worst, p_bar=None):
+    """Bisection per hub on the power that brings its transformer to 100 % loading (other
+    parties at their P_bar)."""
     from seams.domains.grid.dss_env import GridAdapter
 
     grid = GridAdapter(cfg)
@@ -124,6 +163,12 @@ def load_limit(cfg, bg_worst, p_bar=None):
 
 
 def certify_safe(cfg, p_safe, bg_levels, v_margin):
+    """Offline certificate for theta_safe: every corner of the power box [0, p_safe] keeps hub
+    voltages >= v_min + margin and transformers <= 100 %, with regulators acting, at every
+    background level up to scope_bg_max. scope_bg_max is found by bisection; above it the
+    feeder breaks Phi_safe even at theta_safe (at high electrification, even with no charging at
+    all): a grid-side condition no charging contract can address, reported, not hidden.
+    Returns (ok, evidence); ok = the scope covers the whole configured envelope."""
     import itertools
     from seams.domains.grid.dss_env import GridAdapter
 
@@ -165,6 +210,8 @@ def certify_safe(cfg, p_safe, bg_levels, v_margin):
 
 
 def drift_envelope(fine, contract, hubs, per, K, quantile, parties=None):
+    """D[h][k] for k = 1..K from one or more nominal runs (fine and contract logs with Sq_<j>);
+    parties: power parties (hubs, plus HOME, whose power is the logged home_kw)."""
     parties = list(parties or hubs)
     devs = {h: {k: [] for k in range(1, K + 1)} for h in hubs}
     ripple = {h: [] for h in hubs}

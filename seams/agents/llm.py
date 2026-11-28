@@ -1,3 +1,13 @@
+"""LLM backbone for the operator agents: one chat completion with a strict JSON schema, through
+OpenRouter (OpenAI-compatible API; key OPENROUTER_API_KEY from the environment or .env).
+
+Pinned per backbone in the config (agents.backbones): model id, temperature, reasoning effort,
+prices. Every response goes through the replay cache:
+  mode "record"  cache hit -> recorded response; miss -> API call, recorded
+  mode "replay"  cache only; a miss raises CacheMiss (a replayed run must not call the API)
+A response that is not valid JSON, or that `validate` rejects, is retried once with the error
+appended; after that the call returns None (the protocol discards it as malformed).
+"""
 import json
 import os
 import time
@@ -20,6 +30,9 @@ def _api_key():
 
 
 def nullable_enums_as_anyof(schema):
+    """{"type": [T, "null"], "enum": [...]} -> anyOf [{T, enum}, {null}]: the same constraint in the
+    form Anthropic's strict mode accepts (it rejects an enum on a union type). Sent on the wire only;
+    the cache key stays on the canonical schema."""
     if isinstance(schema, list):
         return [nullable_enums_as_anyof(s) for s in schema]
     if not isinstance(schema, dict):
@@ -39,6 +52,8 @@ SCHEMA_COMPAT = {None: lambda s: s, "anyof_enums": nullable_enums_as_anyof}
 
 class LLM:
     def __init__(self, backbone, cache, mode="record", client=None):
+        """backbone: {model, temperature, reasoning (effort or null), max_tokens,
+        price_in_per_mtok, price_out_per_mtok}. client: an OpenAI-compatible client (tests)."""
         self.b = backbone
         self.model = backbone["model"]
         self.cache = cache if isinstance(cache, ReplayCache) else ReplayCache(cache)
@@ -56,6 +71,7 @@ class LLM:
         return self._client
 
     def _complete(self, messages, name, schema):
+        """(text, latency_s, prompt_tokens, completion_tokens, cost) for one request, via the cache."""
         # temperature: null -> the provider default, no seed (models that accept neither, e.g. Haiku 5.5)
         temp = self.b.get("temperature", 0.0)
         temp = None if temp is None else float(temp)
@@ -88,6 +104,7 @@ class LLM:
         return hit["response"], hit["latency_s"]
 
     def call(self, system, user, name, schema, validate=None):
+        """Returns (parsed JSON or None, latency_s summed over attempts, error or None)."""
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         latency, err = 0.0, None
         for _ in range(2):

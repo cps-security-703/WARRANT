@@ -1,3 +1,15 @@
+"""Reported grid telemetry, kept apart from the true state so FDI is representable.
+
+V_rep_h = V_true_h(k - latency) + measurement error + falsification_h, rounded to the meter's
+resolution. Only the grid controller (derating) and the contract monitors read reported
+values; Phi_safe and metrics read the true state.
+
+Measurement error (grid.telemetry, all optional, default an ideal meter):
+  noise_sigma_pu  Gaussian error per report. Revenue-class voltage measurement (ANSI C12.20
+                  class 0.2/0.5, i.e. +-0.2-0.5 % treated as ~3 sigma) gives 0.0007-0.0017 pu.
+  latency_steps   reports are this many fine steps old (SCADA scan + backhaul; 0 at 60 s steps)
+  quantum_pu      reporting resolution (0 = none)
+"""
 from collections import deque
 
 import numpy as np
@@ -18,6 +30,7 @@ class Telemetry:
         self._past_mv = deque(maxlen=self.latency + 1)
 
     def report(self, true_v):
+        """Hub LV voltages as reported (the derating and contract input)."""
         out = self._report(true_v, self._past, self.falsification, self.rng)
         for h, v in self.stuck.items():
             if v is None:
@@ -26,6 +39,8 @@ class Telemetry:
         return out
 
     def report_mv(self, true_v):
+        """MV voltages at the hubs' feeder buses as reported by the feeder RTU, an independent
+        meter with the same error model (used by bad-data detection)."""
         return self._report(true_v, self._past_mv, self.falsification_mv, self.rng_mv)
 
     def _report(self, true_v, past, falsification, rng):

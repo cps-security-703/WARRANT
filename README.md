@@ -1,8 +1,8 @@
-<h1 align="center">WARRANT: Certified Seam Contracts</h1>
+<h1 align="center">WARRANT: Runtime Containment of Attacks Across Mutually Distrusting Cyber-Physical Operators</h1>
 
 <p align="center">
-  <b>Assume–guarantee contracts at the seams between transport, EV charging and the power grid</b><br>
-  with physics-consistent blame, verifier-gated renegotiation by LLM agents, and a Byzantine analysis
+  <b>Runtime assume–guarantee contracts at the seams between transport, EV charging and the power grid</b><br>
+  with physics-consistent blame, certified enforcement between checks, and verifier-gated negotiation by LLM agents
 </p>
 
 <p align="center">
@@ -12,26 +12,30 @@
   <img alt="OpenDSS" src="https://img.shields.io/badge/grid-OpenDSS-1565C0">
   <img alt="Z3" src="https://img.shields.io/badge/verifier-Z3-6A1B9A">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="Simulated days" src="https://img.shields.io/badge/simulated%20days-6%2C690-555">
+  <img alt="Simulated days" src="https://img.shields.io/badge/simulated%20days-6%2C780-555">
 </p>
 
 ---
 
-Three operators share one cyber-physical chain. A **fleet / navigation operator** (SUMO) sends
-electric vehicles to charging hubs. A **charging operator** (ACN-Sim) schedules them. A
+Every electric-vehicle charge depends on three independent operators. A **fleet / navigation
+operator** (SUMO) routes the vehicle, a **charging operator** (ACN-Sim) powers it, and a
 **utility** (OpenDSS, IEEE 34 and IEEE 123 feeders) keeps the feeder inside the ANSI voltage band
-and its transformers within rating. Each operator protects its own domain, so an attack on one
-domain can cascade across the *seams* into the others. Today's protection notices the effect,
-but nobody is held responsible for the cause.
+and its transformers within rating. Each one verifies its own system, but none shares its model or
+trusts the others, so an attack on one surfaces as a failure in another. If an attacker falsifies
+the grid's voltage readings, the charging operator throttles its hubs and drivers leave
+undercharged, even though every operator's own checks pass.
 
-**WARRANT** puts machine-checked assume–guarantee contracts on those seams:
+**WARRANT** places runtime contracts at the *seams* between operators and enforces them from a
+thin trusted layer of meters and power limiters. The key observation is that physics makes the
+grid's promises checkable: a hub's power draw shifts its voltage predictably, so a neighbour can
+expose a falsified reading with only its own meter and the grid's published sensitivities.
 
 | | |
 |---|---|
-| **Monitor** | Signal temporal logic monitors on every seam signal compute robustness ρ and assign **blame** to the operator whose guarantee broke. The checks are physics-consistent, so a falsified meter cannot shift the blame. |
-| **Certify** | A Z3 verifier proves that a contract keeps the feeder safe *between* samples over a 1 h horizon, with explicit ε-margins for linearisation and disturbance. Only certified contracts are installed. |
-| **Renegotiate** | When an operator is blamed, the contract degrades that operator only. Operators (classical optimiser or LLM agents) propose new contracts, and **every proposal passes the same verifier gate**. |
-| **Enforce** | A point-of-common-coupling (PCC) limiter and a hub admission gate enforce the certified contract inside each domain. |
+| **Monitor** | Signal temporal logic monitors check every seam contract once per period and **blame** the operator whose guarantee broke while its assumption held. The grid's physics guarantee ties reported voltage to metered power, so a falsified reading breaks a promise the grid itself made. |
+| **Certify** | A Z3 verifier (exact rationals) proves that a contract keeps the feeder safe at *every fine step* of the next hour, not only at checks, with calibrated ε-margins for linearisation and inter-sample drift. Only certified contracts are enforced. |
+| **Renegotiate** | After a blame, only the blamed operator's contract is degraded. The classical optimiser's certified decision is installed at once; operator agents (LLMs) may propose replacements under a **floor protocol**, but only the verifier admits them. Fallback order: certified agreement, then classical decision, then the offline-certified θ_safe. |
+| **Enforce** | Two shields in the trusted layer, a point-of-common-coupling (PCC) limiter and a hub admission gate 250 m before each hub, enforce the contract in force at every fine step, using trusted measurements only. |
 
 ---
 
@@ -71,8 +75,11 @@ alarms, blame, distrust and every contract change. To render your own videos, se
 The testbed is built from public data. Charging sessions come from ACN-Data (Caltech, Pasadena)
 and EV WATTS (Pacific region). Building load and weather come from NREL ResStock/ComStock for
 Los Angeles County. Feeder load is scaled to *today*, *2035* and *2045* electrification as stress
-levels. A fast-charging variant uses NEVI-class hubs (4 × 150 kW ports) and adds a 7-port
-**robotaxi depot** served by a 20-vehicle AV fleet.
+levels (×1.0, ×1.25 and ×1.5 peak load; 10 %, 35 % and 70 % of households with a home
+charger), with IEEE 34 at 2035 as the design point. The 6.4 × 4.0 km Pasadena network has three
+hubs of 20 Level-2 ports behind 112.5 kVA transformers. A second IEEE 123 configuration replaces
+them with 600 kW NEVI-class fast-charging hubs and adds a 7-port **robotaxi depot** at H2 that can
+draw up to 1.3 MW from 20 robotaxis (90 kWh battery, 1 kW auxiliary load, repeated at 2 kW).
 
 ---
 
@@ -110,9 +117,10 @@ flowchart LR
 
 ## Key results
 
-All results come from **6,440 simulated days** and **250 trained-attacker days**. Every campaign
-has **0 unsound certified periods** and **0 in-scope safety violations**. The paper reports
-negative results as well as positive ones.
+All results come from **6,780 simulated days** plus **250 evaluation days for trained attackers**,
+on real road, charging and load data. No day has an **unsound period** (a certified contract
+followed within its horizon by an in-scope safety violation). Before each campaign we fixed an
+expected outcome; where a result contradicts it, we say so.
 
 <table>
   <tr>
@@ -124,20 +132,38 @@ negative results as well as positive ones.
 
 | RQ | Question | Finding |
 |---|---|---|
-| **RQ1** | Containment and attribution | Falsified grid telemetry at −0.04 p.u. crosses a seam on **100 %** of protection-only days. WARRANT **contains 100 %** and blames the grid within ≤ 6 min. A compromised robotaxi dispatcher is invisible to the bad-data detector, yet WARRANT blames transport on 10/10 days and contains every one. |
-| **RQ2** | Price of certification | +19.5 kWh/day of unserved energy at 2035 on IEEE 34, and about 0 on IEEE 123. The ε-terms account for almost the whole cost. Tighter contracts are cheaper. Without attribution (blind tightening), the same containment costs more on 61 of 62 differing days (p = 3e−17). |
-| **RQ3** | Adaptive attackers | 25 trained attackers. Attacks inside the contract still cost +72.9 kWh/day (aggregator), but there are **0 safety violations** across all 16 inter-sample attackers. Hypothesis H3 is **refuted** and reported as such. |
-| **RQ4** | LLM renegotiation | With a verifier-gated floor, LLM agents beat the classical optimiser on 52 of 58 differing days (p = 3e−10). Naive plan lock-in is not significant. |
-| **RQ5** | Byzantine agents | Across 4 strategies × 3 roles, no Byzantine strategy does worse than classical on average. Safety never depends on the agents. |
+| **RQ1** | Attribution and containment | Grid telemetry falsification (−0.04 p.u.) crosses a seam on **100 %** of protection-only days, although both baseline detectors alarm every time. WARRANT blames the grid within **6 min** and **contains every full-strength day**. At the robotaxi depot, a compromised dispatcher that no detector sees crosses on 2 of 10 days (4 of 10 with a 2 kW auxiliary load); WARRANT blames transport within 4 min and contains every day at every compromised share. False blame: 0.12 per attack-free day. |
+| **RQ2** | Cost of containment | Free on the stiff IEEE 123 feeder and on IEEE 34 at today's load. On the weak IEEE 34 feeder: +19.5 kWh/day at 2035, +103 at 2045. Almost all of it lies in the ε-terms that make safety provable (45.1 kWh/day without them, vs 46.3 for protection only). A 30 min horizon cuts the extra cost by about a third. Blind tightening (no attribution) costs more on 61 of 62 differing days (p = 3 × 10⁻¹⁷). |
+| **RQ3** | Compliant adversary | Within-contract attackers are never detected: the aggregator attacker adds 72.9 kWh/day within its caps, and navigation adds 21 vehicle-hours of delay. 16 inter-sample attackers cause **0 safety violations** with or without the ε-terms, which **refutes** our hypothesis that the ε-terms are what stop them. |
+| **RQ4** | Negotiation without disclosure | Over 2,464 negotiations, agents agree in 59–63 % within at most 71 s of the 120 s window; only 10–24 % of proposals pass the verifier. Locked plans fall behind the classical optimiser (plan lock-in). Under the floor protocol, Gemini and Haiku improve on it by 0.28 and 0.30 kWh/day over 170 days (p < 10⁻⁹). All 1,100 agent days have zero unsound periods. |
+| **RQ5** | Byzantine negotiator | Over 300 Byzantine days and 962 negotiations (4 strategies × 3 roles), no Φ_safe violation or unsound period. A compromised agent costs at most 0.32 kWh/day vs its honest twin, and no strategy does worse than the classical optimiser on average. A stall limit cuts the no-agreement share from 100 % to 86 %. |
+
+**Attack classes.** Together with the adaptive and Byzantine attackers, the scripted attacks
+cover denial of service, load shifting and safety attacks:
+
+| Class | Attack (origin) | Protection only | WARRANT |
+|---|---|---|---|
+| Data integrity | Telemetry falsification (G) | crosses 100 % | contains; blame 6 min |
+| | Two falsified meters (G) | detector silent | blame 6 min; combined estimator contains except under heavy load on IEEE 34 |
+| Denial of service | Navigation flood (T) | no crossing | blame on 60 % of days |
+| | Depot dispatcher (T) | crosses 20 % | contains; blame 4 min |
+| | Stalling agent | – | no loss |
+| Load shifting | Aggregator release 13:00 / 18:30 / 21:00 (C) | +61 / +103 / +82 kWh/day; only 18:30 crosses (2 of 10 days at 2045) | contains every release; blames charging within 2 min on 58 of 60 days |
+| Safety | Masking telemetry, +0.02 / +0.04 p.u. (G) | no added violation | blames the grid within 4–5 min on all 60 days (20 at the depot) |
+| | Inter-sample attackers (16) | – | 0 violations |
 
 <details>
 <summary><b>Honest negative results and limits</b></summary>
 
-- A **detector-triggered local response** (bad-data detection plus an MV-side estimate) also contains single-meter telemetry falsification, at zero attack-free cost.
-- A **coordinated two-meter falsification** silences the bad-data detector and poisons the MV estimate. WARRANT still blames the grid, but with the MV estimator it crosses on 10/10 days. The combined `both` estimator contains it at IEEE 34 / 2035. At IEEE 34 / 2045, 6 of 10 days still cross.
-- At 2035 WARRANT's own certified cap already constrains H1, so containment does **not** translate into more delivered energy on those days.
-- A stuck meter is a blind spot: 1 of 10 days blamed, after 2 h.
-- Certification fits a 2 s budget up to about 10–15 hubs (total time grows as ~n^2.6).
+- A **detector-triggered local response** (bad-data detection plus an MV-meter estimate) contains single-meter telemetry falsification equally well, but it trusts the suspected operator's meters, ignores charging and transport attacks, and names no one.
+- When **two meters are falsified** so that the bad-data detector stays silent, that response crosses on every day. WARRANT still blames the grid through the trusted PCC meter, and the combined estimator contains every two-meter day except under heavy load on the weak feeder (never worse than either estimator alone, over 240 days).
+- At the design point WARRANT's own certified cap already holds H1 near the derated level, so containment does **not** translate into more delivered energy there (73.0 vs 48.0 kWh/day on falsification days). On IEEE 123 and at today's load, containment also saves energy.
+- Containment holds at every load level except IEEE 34 at 2045 (6 of 10 days), where voltage already sits near the derating knee.
+- Attribution reaches only 60 % of navigation days and half the depot days with a quarter of the fleet compromised, when the surge stays within the quotas; then no one is blamed and nothing crosses.
+- Slower ramps narrow the race but do not win it: up to a 40 min ramp WARRANT contains all 50 days, though its lead shrinks from 5 to 1.5 min.
+- A frozen meter remains a blind spot.
+- Certification fits the 2 s budget up to about 10–15 hubs (renegotiation time grows as ~n^2.6: 1.0 s at 10 hubs, 61 s at 50).
+- The evidence comes from one road network and two IEEE feeders; most cells cover 10 days, and the guarantees hold only under assumptions A1–A4.
 
 </details>
 
@@ -156,14 +182,18 @@ negative results as well as positive ones.
 | `detect_respond` | detector-triggered response; falsification ramp rates | 220 |
 | `disturbances` | honest capacitor trips, load steps, stuck meter | 240 |
 | `two_meter` | coordinated LV + MV falsification | 140 |
+| `peak_shift` | aggregator release at 13:00 / 18:30 / 21:00; 2035 and 2045 | 160 |
+| `fdi_mask` | safety-masking telemetry, +0.02 / +0.04 p.u. at H1; 2035 and 2045 | 120 |
+| `depot_mask` | safety-masking telemetry at the robotaxi depot (IEEE 123, 2035) | 60 |
 | `anchor_screen`, `both_eval` | PCC-anchor and combined distrust estimators | 420 |
 | `cost_decomp`, `horizon30` | ε-term cost decomposition; 30 min verifier horizon | 250 |
 | `depot`, `depot_aux2kW` | fast-charging hubs and robotaxi depot on IEEE 123 (1 kW and 2 kW AV auxiliary load) | 880 |
 | `rq4`, `rq4_conservatism` | classical vs Gemini / Haiku × {lock, floor}; unforeseen faults | 1,010 |
 | `rq5` | 4 Byzantine strategies × 3 roles × {nominal, attack} | 340 |
-| `rq3` (`train_attackers`) | 25 trained attackers × 10 held-out days | 250 |
+| `rq3` (`train_attackers`) | trained within-contract and inter-sample attackers × 10 held-out days | 250 |
 | `scaling` | synthetic n-hub certification, n ≤ 100 (solver only) | – |
 | `both_dev` | development run for the combined estimator (seeds 3000–3009, not counted above) | 90 |
+| **Total** | 6,780 simulated days + 250 trained-attacker days | **7,030** |
 
 Specifications are in [`seams/experiments/campaigns/`](seams/experiments/campaigns). Summaries are in
 [`seams/results/`](seams/results) (`*_summary.parquet`, `*_table.csv`). Every figure is in
@@ -179,6 +209,7 @@ Specifications are in [`seams/experiments/campaigns/`](seams/experiments/campaig
 .
 ├── run_all.sh                 # one-command, resumable end-to-end pipeline
 ├── requirements.txt           # pinned Python dependencies
+├── seams/requirements.lock    # full frozen environment used for the paper runs
 ├── LICENSE                    # MIT
 ├── adaptive_rl/               # Transformer IDS model and training recipe (detection baseline)
 ├── docs/media/                # README media (video preview)
@@ -232,14 +263,16 @@ export SUMO_HOME=~/sumo        # default if unset: ~/sumo (seams/config/phase0.y
 
 **3. (Optional) LLM agents**
 
-Only RQ4 and RQ5 call an LLM, through [OpenRouter](https://openrouter.ai):
+Only RQ4 and RQ5 call an LLM. The negotiation protocol is a LangGraph state machine with one
+agent per operator, using Gemini 3.6 Flash (temperature 0) and, as an ablation, Claude Haiku 5.5,
+through [OpenRouter](https://openrouter.ai):
 
 ```bash
 cp .env.example .env           # then set OPENROUTER_API_KEY
 ```
 
 Responses are recorded in a replay cache (`~/seams_runs/llm_cache.sqlite`), so a second run of
-the same campaign costs nothing.
+the same campaign costs nothing. All 1,100 agent days cost under US$50 in LLM calls.
 
 ---
 
@@ -323,7 +356,8 @@ seeds only. It is never trained on the scripted attacks it is later scored again
 
 ## Citation
 
-Citation details will be added once the paper is published.
+The paper, *Warrant: Runtime Containment of Attacks Across Mutually Distrusting Cyber-Physical
+Operators*, is under review. Citation details will be added once it is published.
 
 ## License
 
