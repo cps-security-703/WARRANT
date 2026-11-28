@@ -24,3 +24,4 @@ adaptive_rl/acndata/
 # Paper draft (double-blind review) and local backups
 seams/shields/WARRANT_Draft/
 *.bak_*
+*.tex

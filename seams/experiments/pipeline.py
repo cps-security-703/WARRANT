@@ -8,7 +8,7 @@ Stages, in order (each one is resumable; a stage whose outputs exist is skipped 
   calibrate    theta_static, theta_safe and the BDD for every feeder x electrification x Delta used
   ids          the retrained Transformer IDS (seams/models/ids_transformer_testbed.pkl)
   campaigns    RQ1, RQ2, Delta, electrification, IEEE 123, dwell sensitivity, blind tightening (no LLM)
-  rq3          the 23 trained attackers (SPEAR two-layer RL), in dependency order
+  rq3          the 23 trained attackers (two-layer RL), in dependency order
   agents       RQ4, RQ4 conservatism, RQ5 (LLM; OPENROUTER_API_KEY in .env; calls already in the
                replay cache ~/seams_runs/llm_cache.sqlite cost nothing)
   figures      seams.analysis.make_figures: every table and figure, PNG and PDF

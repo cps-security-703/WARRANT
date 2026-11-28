@@ -1,4 +1,4 @@
-"""Phase 7 (RQ3): train SPEAR's two-layer attacker per surface, then evaluate the frozen policies
+"""Phase 7 (RQ3): train the two-layer attacker per surface, then evaluate the frozen policies
 on held-out seeds.
 
     python -m seams.experiments.train_attackers seams/config/phase7.yaml \

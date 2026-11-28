@@ -1,12 +1,12 @@
 """IDS for the protection-only baseline. An alarm counts as detection only: it triggers no
 containment action, which is the gap contracts fill.
 
-SpearIDS: SPEAR's champion detector (Transformer IDS, SPEAR/models/best_ids_model.pkl: AUC 0.989,
-FPR 0.13 % per window on SPEAR's test set). It scores one charging session at a time over 10
-consecutive 1-minute samples of a 14-feature vector, as in SPEAR's training
-(compare_ids_models_update._evcs_features_14d over ACNDataLoader.sample_benign_window):
+TransformerSessionIDS: the session-level Transformer IDS of adaptive_rl/, retrained on this testbed
+(seams.experiments.train_ids). It scores one charging session at a time over 10
+consecutive 1-minute samples of a 14-feature vector, as in its training
+(adaptive_rl/ids_training.py):
 
-   0 soc               energy delivered / (60 kWh * 0.8)        (SPEAR's derive_soc)
+   0 soc               energy delivered / (60 kWh * 0.8)        (as in training)
    1 voltage / 240     charger voltage                          per-unit adapted, see below
    2 current / 32      charger current [A]
    3 power / 7.68      charger power                            per-unit adapted
@@ -21,7 +21,7 @@ consecutive 1-minute samples of a 14-feature vector, as in SPEAR's training
   12 time of day / 24
   13 system id / 10    hub index 1..3
 
-Per-unit adaptation: our chargers are 208 V / 32 A / 6.66 kW; SPEAR's training data is 240 V /
+Per-unit adaptation: our chargers are 208 V / 32 A / 6.66 kW; the training data is 240 V /
 32 A / 7.68 kW. Voltage and power enter as per-unit of the charger's own rating mapped onto the
 training rating, so a charger at its rating looks like a training charger at its rating.
 Features 7 and 9 carry what a charging-side IDS would actually see, although training only saw
@@ -43,11 +43,11 @@ TRAIN_V, TRAIN_P_KW = 240.0, 7.68
 SEQ_LEN = 10
 
 
-def import_spear(cfg):
-    """Make SPEAR's modules importable and its pickled classes resolvable."""
-    spear_dir = str(resolve_path(cfg["ids"].get("spear_dir", "SPEAR")))
-    if spear_dir not in sys.path:
-        sys.path.insert(0, spear_dir)
+def import_adaptive_rl(cfg):
+    """Make adaptive_rl's modules importable and its pickled classes resolvable."""
+    adaptive_rl_dir = str(resolve_path(cfg["ids"].get("adaptive_rl_dir", "adaptive_rl")))
+    if adaptive_rl_dir not in sys.path:
+        sys.path.insert(0, adaptive_rl_dir)
     import __main__
     import ids_neural_models as m
     for cls in ("TransformerIDS", "TransformerIDSWrapper", "AutoencoderIDS", "LSTMIDSBenchmark"):
@@ -98,15 +98,14 @@ class SessionWindows:
         return full
 
 
-class SpearIDS:
-    """SPEAR's Transformer IDS. model_path selects the bundle: SPEAR's pre-trained one
-    (ACN-Data; does not transfer to this testbed) or the testbed-retrained one
+class TransformerSessionIDS:
+    """The session-level Transformer IDS. model_path selects the bundle: the testbed-retrained one
     (seams.experiments.train_ids: same architecture and recipe, calibration seeds only)."""
-    name = "spear_transformer"
+    name = "transformer"
 
     def __init__(self, cfg):
         c = cfg["ids"]
-        import_spear(cfg)
+        import_adaptive_rl(cfg)
         with open(resolve_path(c["model_path"]), "rb") as f:
             bundle = pickle.load(f)
         self.model, self.scaler = bundle["model"], bundle["scaler"]
@@ -160,7 +159,7 @@ class PlaceholderIDS:
 
 
 def make_ids(cfg):
-    """ids.kind: one detector, or several joined with '+' (e.g. spear+bdd)."""
+    """ids.kind: one detector, or several joined with '+' (e.g. transformer+bdd)."""
     kind = cfg.get("ids", {}).get("kind")
     if kind is None:
         return None
@@ -172,8 +171,8 @@ def make_ids(cfg):
         return BadDataDetector(cfg)
     if kind == "placeholder":
         return PlaceholderIDS(cfg)
-    if kind == "spear":
-        return SpearIDS(cfg)
+    if kind == "transformer":
+        return TransformerSessionIDS(cfg)
     if kind == "recorder":
         return WindowRecorder(cfg)
     raise ValueError(f"unknown IDS {kind!r}")

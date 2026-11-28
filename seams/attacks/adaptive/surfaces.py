@@ -1,7 +1,7 @@
 """Attack surfaces for the adaptive attackers (RQ3): the scripted injection points with their
 strength set at every decision step instead of once.
 
-Each surface maps an action in [-1, 1]^2 to its strength parameters (SPEAR's SAC layer:
+Each surface maps an action in [-1, 1]^2 to its strength parameters (the SAC layer:
 magnitude and ramp/pattern) and exposes the grey-box observation the attacker has at its
 injection point; the discrete choices (target, onset, duration) are the DQN layer's.
 

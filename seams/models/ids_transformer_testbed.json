@@ -1,5 +1,5 @@
 {
-  "model_name": "Transformer IDS (testbed-retrained, SPEAR recipe)",
+  "model_name": "Transformer IDS (testbed-retrained)",
   "threshold": 0.9249473214149475,
   "roc_auc": 0.9612015625,
   "recall": 0.88125,

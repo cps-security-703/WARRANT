@@ -16,7 +16,7 @@ conditions:
   contracts_anchor: {config: seams/config/phase5.yaml, set: {renegotiation.distrust_estimator: anchor}}
   # review experiment B: the same local response, triggered by the Transformer IDS (which still
   # alarms under the two-meter FDI) instead of the BDD; nominal gives its attack-free cost
-  ids_response_tids: {config: seams/config/phase2.yaml, set: {ids_response.enabled: true, ids_response.detector: spear_transformer}}
+  ids_response_tids: {config: seams/config/phase2.yaml, set: {ids_response.enabled: true, ids_response.detector: transformer}}
 schedulers: [EDF]
 scenarios:
   nominal: {attack: null}

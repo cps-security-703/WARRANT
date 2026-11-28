@@ -1,4 +1,4 @@
-"""Gymnasium environments for SPEAR's two-layer attacker, retargeted to the seams.
+"""Gymnasium environments for the two-layer attacker, retargeted to the seams.
 
 DQN layer (ArmEnv): one decision per episode, the discrete arm (target, onset slot, duration);
 its reward is the return of a whole episode played by the current (frozen) SAC policy. The

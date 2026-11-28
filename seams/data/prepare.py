@@ -1,6 +1,6 @@
 """Real-data inputs: raw public datasets -> small processed tables the testbed samples from.
 
-    python -m seams.data.prepare [--raw ~/seams_data/raw] [--spear SPEAR/evcs_data]
+    python -m seams.data.prepare [--raw ~/seams_data/raw] [--evcs adaptive_rl/evcs_data]
 
 Sources (raw files stay outside the project; processed tables go to seams/data/processed):
   sessions.parquet   per hub profile, weekday L2 sessions: plug-in time of day, dwell, energy
@@ -48,8 +48,8 @@ def _clean(df, source, cap=True, port_kw=PORT_KW):
     return df
 
 
-def acn_workplace(spear):
-    d = pd.read_csv(spear.parent / "acndata" / "caltech_sessions_summary.csv")
+def acn_workplace(evcs):
+    d = pd.read_csv(evcs.parent / "acndata" / "caltech_sessions_summary.csv")
     t0 = pd.to_datetime(d.connectionTime, utc=True).dt.tz_convert("America/Los_Angeles")
     t1 = pd.to_datetime(d.disconnectTime, utc=True).dt.tz_convert("America/Los_Angeles")
     df = pd.DataFrame({
@@ -63,8 +63,8 @@ def acn_workplace(spear):
     return _clean(df[df.weekday], "ACN-Data Caltech")
 
 
-def evwatts_venue(spear, venues):
-    root = spear / "evwatts.public"
+def evwatts_venue(evcs, venues):
+    root = evcs / "evwatts.public"
     evse = pd.read_csv(root / "evwatts.public.evse.csv", encoding="utf-8-sig")
     evse = evse[(evse.region == "Pacific") & (evse.charge_level == "L2") & evse.venue.isin(venues.values())]
     s = pc.read_csv(root / "evwatts.public.session.csv", convert_options=pc.ConvertOptions(
@@ -88,10 +88,10 @@ def evwatts_venue(spear, venues):
     return out
 
 
-def evwatts_dcfc(spear):
+def evwatts_dcfc(evcs):
     """Weekday sessions at EV WATTS Pacific DC fast chargers (all venues), for the fast-charging
     hub variant; 50k-session sample like the home profile."""
-    root = spear / "evwatts.public"
+    root = evcs / "evwatts.public"
     evse = pd.read_csv(root / "evwatts.public.evse.csv", encoding="utf-8-sig")
     evse = evse[(evse.region == "Pacific") & (evse.charge_level == "DCFC")]
     s = pc.read_csv(root / "evwatts.public.session.csv", convert_options=pc.ConvertOptions(
@@ -112,8 +112,8 @@ def evwatts_dcfc(spear):
     return df.sample(n=min(len(df), 50_000), random_state=0)
 
 
-def soc_start(spear):
-    root = spear / "evwatts.public"
+def soc_start(evcs):
+    root = evcs / "evwatts.public"
     v = pd.read_csv(root / "evwatts.public.vehicles.csv")
     bev = v[(v.vehicle_type == "PASSENGER CAR") & v.electrification_level.str.startswith("BEV")].id
     s = pd.read_csv(root / "evwatts.public.vehiclesessions.csv")
@@ -121,10 +121,10 @@ def soc_start(spear):
     return (s.soc_start.to_numpy() / 100.0).astype(np.float32)
 
 
-def trips(spear):
+def trips(evcs):
     """Trip length [km] (subsampled to keep the file small) and the weekday hour-of-day share of
     trip starts (through traffic departs on it)."""
-    t = pd.read_csv(spear / "evwatts.public" / "evwatts.public.vehicletrips.csv",
+    t = pd.read_csv(evcs / "evwatts.public" / "evwatts.public.vehicletrips.csv",
                     usecols=["km", "start_datetime", "flag_id"])
     t = t[(t.flag_id == 0) & t.km.between(0.2, 50)]
     km = t.km.to_numpy().astype(np.float32)
@@ -167,23 +167,23 @@ def load_la(raw):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw", default="~/seams_data/raw")
-    ap.add_argument("--spear", default=str(PROJECT_ROOT / "SPEAR" / "evcs_data"))
+    ap.add_argument("--evcs", default=str(PROJECT_ROOT / "adaptive_rl" / "evcs_data"))
     args = ap.parse_args(argv)
-    raw, spear = Path(args.raw).expanduser(), Path(args.spear)
+    raw, evcs = Path(args.raw).expanduser(), Path(args.evcs)
     OUT.mkdir(parents=True, exist_ok=True)
 
-    profiles = {"workplace": acn_workplace(spear)}
-    profiles.update(evwatts_venue(spear, {"public": "Multi-use Parking Garage/Lot", "retail": "Retail",
+    profiles = {"workplace": acn_workplace(evcs)}
+    profiles.update(evwatts_venue(evcs, {"public": "Multi-use Parking Garage/Lot", "retail": "Retail",
                                           "home": "Single Family Residential"}))
     home = profiles["home"]
     home = home[home.rate_kw.between(1.0, 11.5)]  # L1 trickle and implausible rates out
     profiles["home"] = home.sample(n=min(len(home), 50_000), random_state=0)  # keeps the file small
-    profiles["dcfc"] = evwatts_dcfc(spear)
+    profiles["dcfc"] = evwatts_dcfc(evcs)
     sessions = pd.concat([df.assign(profile=p) for p, df in profiles.items()], ignore_index=True)
     sessions[["profile", "source", "date", "port", "arr_s", "dwell_s", "kwh", "rate_kw", "capped"]].to_parquet(
         OUT / "sessions.parquet", index=False)
-    soc, load = soc_start(spear), load_la(raw)
-    km, start_hour = trips(spear)
+    soc, load = soc_start(evcs), load_la(raw)
+    km, start_hour = trips(evcs)
     np.save(OUT / "soc_start.npy", soc)
     np.save(OUT / "trip_km.npy", km)
     np.save(OUT / "trip_start_hour.npy", start_hour)

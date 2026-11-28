@@ -211,7 +211,7 @@ Specifications are in [`seams/experiments/campaigns/`](seams/experiments/campaig
 ├── requirements.txt           # pinned Python dependencies
 ├── seams/requirements.lock    # full frozen environment used for the paper runs
 ├── LICENSE                    # MIT
-├── adaptive_rl/               # Transformer IDS model and training recipe (detection baseline)
+├── adaptive_rl/               # Transformer IDS architecture and training recipe (detection baseline)
 ├── docs/media/                # README media (video preview)
 └── seams/
     ├── cosim/                 # master clock, config loader, logger: couples the three simulators
@@ -345,12 +345,33 @@ and IEEE 123 feeders are the standard OpenDSS test cases.
 
 ---
 
-## `adaptive_rl`
+## Detection baselines and `adaptive_rl`
 
-`adaptive_rl/` holds the session-level **Transformer IDS** used as a detection baseline:
-`ids_neural_models.py` (architecture) and `ids_training.py` (synthetic false-data injections and
-the training loop). `seams.experiments.train_ids` retrains it on this testbed using calibration
-seeds only. It is never trained on the scripted attacks it is later scored against.
+Protection only, today's practice, runs two detectors side by side (`ids.kind: transformer+bdd`
+in [`seams/config/phase2.yaml`](seams/config/phase2.yaml)). Their alarms trigger **no
+containment**, which is the gap the contracts fill:
+
+| Detector | Watches | Model |
+|---|---|---|
+| `chi2_bdd` | grid telemetry | chi-square bad-data detector, calibrated per feeder and load level (`seams/models/bdd_*.json`) |
+| `transformer` | charging sessions | session-level Transformer IDS, retrained on this testbed (`seams/models/ids_transformer_testbed.pkl`) |
+
+The **Transformer IDS** (`TransformerSessionIDS` in
+[`seams/baselines/ids.py`](seams/baselines/ids.py)) scores each charging session over 10
+consecutive 1-minute samples of a 14-feature vector, and a hub alarms when any of its sessions
+does. `adaptive_rl/` holds its architecture (`ids_neural_models.py`) and its training recipe
+(`ids_training.py`: synthetic false-data injections and the training loop).
+`seams.experiments.train_ids` retrains it on benign windows from calibration seeds 1000–1003 plus
+those synthetic injections, and sets the threshold by Youden's J on held-out seed 1004
+(ROC AUC 0.96, recall 0.88, no false alarms on the held-out windows). It is never trained on
+the scripted attacks it is later scored against. At the robotaxi depot it alarms on every day,
+12.7 times per attack-free day.
+
+The detect-and-respond baselines in `detect_respond`, `disturbances` and `two_meter` reuse these
+detectors: when one alarms, charging derates on an MV-meter estimate instead of the reported
+voltage (`ids_response.detector: chi2_bdd` or `transformer`). This contains single-meter
+falsification, but it trusts the suspected operator's meters, ignores charging and transport
+attacks, and names no one. Once a second meter is falsified, the bad-data detector stays silent.
 
 ---
 
