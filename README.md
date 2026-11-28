@@ -12,12 +12,12 @@
   <img alt="OpenDSS" src="https://img.shields.io/badge/grid-OpenDSS-1565C0">
   <img alt="Z3" src="https://img.shields.io/badge/verifier-Z3-6A1B9A">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="Simulated days 6780">
+  <img alt="Simulated days" src="https://img.shields.io/badge/simulated%20days-6%2C690-555">
 </p>
 
 ---
 
-Three operators share one cyber-physical chain. A **fleet/navigation operator** (SUMO) sends
+Three operators share one cyber-physical chain. A **fleet / navigation operator** (SUMO) sends
 electric vehicles to charging hubs. A **charging operator** (ACN-Sim) schedules them. A
 **utility** (OpenDSS, IEEE 34 and IEEE 123 feeders) keeps the feeder inside the ANSI voltage band
 and its transformers within rating. Each operator protects its own domain, so an attack on one
@@ -30,7 +30,7 @@ but nobody is held responsible for the cause.
 |---|---|
 | **Monitor** | Signal temporal logic monitors on every seam signal compute robustness ρ and assign **blame** to the operator whose guarantee broke. The checks are physics-consistent, so a falsified meter cannot shift the blame. |
 | **Certify** | A Z3 verifier proves that a contract keeps the feeder safe *between* samples over a 1 h horizon, with explicit ε-margins for linearisation and disturbance. Only certified contracts are installed. |
-| **Renegotiate** | When an operator is blamed, the contract degrades only that operator. Operators (classical optimizer or LLM agents) propose new contracts, and **every proposal passes the same verifier gate**. |
+| **Renegotiate** | When an operator is blamed, the contract degrades that operator only. Operators (classical optimiser or LLM agents) propose new contracts, and **every proposal passes the same verifier gate**. |
 | **Enforce** | A point-of-common-coupling (PCC) limiter and a hub admission gate enforce the certified contract inside each domain. |
 
 ---
@@ -285,7 +285,7 @@ python -m seams.viz.live aggregator --electrification 2045 --save aggregator.mp4
 
 Raw run data goes to `~/seams_runs/<campaign>/`, outside the repository. A campaign skips every
 run that already has `metrics.json`, so an interrupted campaign resumes where it stopped. From
-scratch on 10 cores, the pipeline takes several days (RQ3 alone about 2.5 days). Launch long
+scratch on 10 cores the pipeline takes several days (RQ3 alone about 2.5 days). Launch long
 stages detached, for example `nohup ./run_all.sh --stages campaigns > campaigns.log 2>&1 &`.
 
 > **Note:** Any process that has imported `libsumo` cannot call `pandas.read_parquet`, because of a conflicting Arrow build. Analysis modules therefore read results in their own process.
@@ -305,7 +305,7 @@ here:
 |---|---|---|
 | [ACN-Data](https://ev.caltech.edu/dataset) (Caltech, Pasadena; Lee, Li & Low, e-Energy 2019) | workplace charging sessions | `adaptive_rl/acndata/` |
 | [EV WATTS](https://livewire.energy.gov/project/evwatts) (DOE / Energetics), Pacific region | public, retail, home and DC fast-charging sessions; SOC at plug-in; trip lengths | `adaptive_rl/evcs_data/evwatts.public/` |
-| [NREL ResStock / ComStock](https://www.nlr.gov/buildings/end-use-load-profiles.html) 2021, AMY 2018, Los Angeles County | feeder load shape and ambient temperature | `~/seams_data/raw/` (`--raw`) |
+| [NREL ResStock / ComStock](https://www.nrel.gov/buildings/end-use-load-profiles.html) 2021, AMY 2018, Los Angeles County | feeder load shape and ambient temperature | `~/seams_data/raw/` (`--raw`) |
 
 The road network is built from OpenStreetMap (© OpenStreetMap contributors, ODbL). The IEEE 34
 and IEEE 123 feeders are the standard OpenDSS test cases.
