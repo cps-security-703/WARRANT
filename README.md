@@ -12,12 +12,12 @@
   <img alt="OpenDSS" src="https://img.shields.io/badge/grid-OpenDSS-1565C0">
   <img alt="Z3" src="https://img.shields.io/badge/verifier-Z3-6A1B9A">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="Simulated days" src="https://img.shields.io/badge/simulated%20days-6%2C690-555">
+  <img alt="Simulated days 6780">
 </p>
 
 ---
 
-Three operators share one cyber-physical chain. A **fleet / navigation operator** (SUMO) sends
+Three operators share one cyber-physical chain. A **fleet/navigation operator** (SUMO) sends
 electric vehicles to charging hubs. A **charging operator** (ACN-Sim) schedules them. A
 **utility** (OpenDSS, IEEE 34 and IEEE 123 feeders) keeps the feeder inside the ANSI voltage band
 and its transformers within rating. Each operator protects its own domain, so an attack on one
@@ -30,7 +30,7 @@ but nobody is held responsible for the cause.
 |---|---|
 | **Monitor** | Signal temporal logic monitors on every seam signal compute robustness ρ and assign **blame** to the operator whose guarantee broke. The checks are physics-consistent, so a falsified meter cannot shift the blame. |
 | **Certify** | A Z3 verifier proves that a contract keeps the feeder safe *between* samples over a 1 h horizon, with explicit ε-margins for linearisation and disturbance. Only certified contracts are installed. |
-| **Renegotiate** | When an operator is blamed, the contract degrades that operator only. Operators (classical optimiser or LLM agents) propose new contracts, and **every proposal passes the same verifier gate**. |
+| **Renegotiate** | When an operator is blamed, the contract degrades only that operator. Operators (classical optimizer or LLM agents) propose new contracts, and **every proposal passes the same verifier gate**. |
 | **Enforce** | A point-of-common-coupling (PCC) limiter and a hub admission gate enforce the certified contract inside each domain. |
 
 ---
